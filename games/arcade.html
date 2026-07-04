@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>xztx127的乱七八糟资源库 · Minecraft</title>
+<link rel="stylesheet" href="css/mc-ui.css">
+<link rel="stylesheet" href="css/arcade.css">
+</head>
+<body class="arcade">
+
+  <button class="mc-btn sm mc-back" onclick="location.href='index.html'">← 返回主菜单</button>
+  <div id="mc-notifs"></div>
+
+  <div class="arc-wrap">
+    <header class="arc-header">
+      <div class="mc-title">xztx127的乱七八糟资源库</div>
+      <div class="mc-splash arc-splash" id="arcade-splash"></div>
+    </header>
+
+    <div class="tabs">
+      <div class="tab on" id="tab-games"   onclick="MCArcade.tab('games')">小游戏库</div>
+      <div class="tab"    id="tab-mods"    onclick="MCArcade.tab('mods')">模组库</div>
+      <div class="tab"    id="tab-contact" onclick="MCArcade.tab('contact')">联系作者</div>
+    </div>
+
+    <!-- 小游戏 -->
+    <section id="panel-games">
+      <div class="games-grid" id="games-grid"></div>
+    </section>
+
+    <!-- 模组库 -->
+    <section id="panel-mods" style="display:none">
+      <div id="mods-list"></div>
+    </section>
+
+    <!-- 联系作者 -->
+    <section id="panel-contact" style="display:none">
+      <p class="contact-intro">
+        我是 <b style="color:var(--mc-gold)">CoreTweaker127</b>（也叫 xztx127）。<br>
+        欢迎反馈 bug、提建议、或者只是来打个招呼！点击下面任意一项即可联系我。
+      </p>
+      <div class="contacts-grid" id="contacts-grid"></div>
+    </section>
+
+    <div class="arc-footer">小游戏厅 · 共 21 款游戏 · 全部纯网页实现，离线可玩</div>
+  </div>
+
+  <script src="js/splashes.js"></script>
+  <script src="js/arcade.js"></script>
+  <script>
+// 自动根据 URL hash 切换标签页（不修改 HTML）
+(function() {
+    function activateTabByHash() {
+        var hash = window.location.hash;
+        if (!hash) return;
+        
+        // 获取所有按钮/链接
+        var elements = document.querySelectorAll('button, a, div[onclick]');
+        var targetBtn = null;
+        
+        // 根据 hash 查找对应按钮
+        if (hash === '#mods') {
+            // 查找包含"模组库"文字的按钮
+            for (var i = 0; i < elements.length; i++) {
+                if (elements[i].innerText && elements[i].innerText.indexOf('模组库') > -1) {
+                    targetBtn = elements[i];
+                    break;
+                }
+            }
+        } else if (hash === '#contact') {
+            // 查找包含"联系作者"文字的按钮
+            for (var i = 0; i < elements.length; i++) {
+                if (elements[i].innerText && elements[i].innerText.indexOf('联系作者') > -1) {
+                    targetBtn = elements[i];
+                    break;
+                }
+            }
+        } else if (hash === '#games') {
+            // 查找包含"小游戏库"文字的按钮
+            for (var i = 0; i < elements.length; i++) {
+                if (elements[i].innerText && elements[i].innerText.indexOf('小游戏库') > -1) {
+                    targetBtn = elements[i];
+                    break;
+                }
+            }
+        }
+        
+        // 找到按钮后模拟点击
+        if (targetBtn) {
+            // 延迟执行，确保页面完全加载
+            setTimeout(function() {
+                if (targetBtn.click) {
+                    targetBtn.click();
+                } else if (targetBtn.onclick) {
+                    targetBtn.onclick();
+                }
+            }, 100);
+        }
+    }
+    
+    // 页面加载时执行
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', activateTabByHash);
+    } else {
+        activateTabByHash();
+    }
+    
+    // 监听 hash 变化
+    window.addEventListener('hashchange', activateTabByHash);
+})();
+</script>
+</body>
+</html>

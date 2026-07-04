@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>洞穴跑酷</title>
+<style>
+body{margin:0;background:#0d0a15;color:#e8ecf4;font-family:"Microsoft YaHei",system-ui,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px;user-select:none;overflow:hidden}
+a.back{align-self:flex-start;color:#98a3b8;text-decoration:none;font-size:13px}
+h1{font-size:20px;letter-spacing:3px;margin:6px 0}
+.hud{font-size:14px;margin-bottom:8px}
+.hud b{color:#ffd24d}
+canvas{background:#1c1424;border:4px solid #000;outline:2px solid #555;max-width:96vw;
+  image-rendering:pixelated;touch-action:manipulation}
+.tip{color:#98a3b8;font-size:12px;margin-top:8px;text-align:center;line-height:1.8}
+</style>
+</head>
+<body>
+<a class="back" href="../arcade.html">← 返回游戏厅</a>
+<h1>⛏ 洞穴跑酷</h1>
+<div class="hud">距离 <b id="sc">0</b> m　·　🏆 最远 <b id="hi">0</b> m　·　💎 收集 <b id="gem">0</b></div>
+<canvas id="cv" width="720" height="360"></canvas>
+<div class="tip">空格 / ↑ / 点击上半屏 = 跳（可二段跳）　·　S / ↓ / 点击下半屏 = 滑铲<br>躲开 🟢 苦力怕 · 🕸 蜘蛛网 · 🔥 岩浆，收集💎绿宝石</div>
+<script>
+const cv=document.getElementById('cv'),cx=cv.getContext('2d');
+const W=cv.width,H=cv.height,GY=H-60;                  // 地面 y
+let px,py,vy,size,sliding,jumps,dead,dist,gem,speed,t,obs,parts,
+    hi=+(localStorage.getItem('mc_run_hi')||0);
+document.getElementById('hi').textContent=hi;
+function reset(){
+  px=140;py=GY;vy=0;size=44;sliding=false;jumps=2;dead=false;
+  dist=0;gem=0;speed=5;t=0;obs=[];parts=[];
+  document.getElementById('sc').textContent=0;
+  document.getElementById('gem').textContent=0;
+}
+function jump(){
+  if(dead){reset();return;}
+  if(jumps>0){vy=-13;jumps--;sliding=false;}
+}
+function slide(down){
+  if(dead)return;
+  sliding=down;
+  if(!down)size=44;
+}
+document.addEventListener('keydown',e=>{
+  if(['Space','ArrowUp','KeyW'].includes(e.code)){jump();e.preventDefault();}
+  if(['ArrowDown','KeyS'].includes(e.code)){slide(true);e.preventDefault();}
+});
+document.addEventListener('keyup',e=>{
+  if(['ArrowDown','KeyS'].includes(e.code))slide(false);
+});
+cv.addEventListener('mousedown',e=>{
+  const r=cv.getBoundingClientRect();
+  const y=(e.clientY-r.top)/r.height;
+  if(y<0.55)jump();else slide(true);
+});
+cv.addEventListener('mouseup',()=>slide(false));
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const r=cv.getBoundingClientRect();
+  const y=(e.touches[0].clientY-r.top)/r.height;
+  if(y<0.55)jump();else slide(true);
+},{passive:false});
+cv.addEventListener('touchend',()=>slide(false));
+function addObs(){
+  const r=Math.random();
+  if(r<0.35){                       // 地面：苦力怕
+    obs.push({kind:'creeper',x:W+20,y:GY-30,w:34,h:30});
+  }else if(r<0.55){                  // 岩浆坑
+    obs.push({kind:'lava',x:W+20,y:GY-4,w:60+Math.random()*40|0,h:8});
+  }else if(r<0.78){                  // 头顶蜘蛛网（要滑铲）
+    obs.push({kind:'web',x:W+20,y:GY-72,w:44,h:26});
+  }else if(r<0.9){                    // 高台障碍：铁栏
+    obs.push({kind:'bar',x:W+20,y:GY-64,w:12,h:60});
+  }else{                              // 绿宝石
+    obs.push({kind:'gem',x:W+20,y:GY-90-Math.random()*40,w:18,h:18});
+  }
+}
+function step(){
+  requestAnimationFrame(step);
+  cx.clearRect(0,0,W,H);
+  // 背景层
+  cx.fillStyle='#1c1424';cx.fillRect(0,0,W,H);
+  cx.fillStyle='rgba(255,255,255,.04)';
+  for(let i=0;i<40;i++)cx.fillRect(((i*97-t*0.6)%(W+50)),(i*29)%(H-100),3,3);
+  // 远景山
+  cx.fillStyle='#241a2f';
+  for(let i=0;i<8;i++){
+    const x=((i*180-t*0.8)%(W+220))-100;
+    cx.beginPath();cx.moveTo(x,GY);cx.lineTo(x+90,GY-70);cx.lineTo(x+180,GY);cx.fill();
+  }
+  // 地面
+  cx.fillStyle='#3a2a1a';cx.fillRect(0,GY,W,H-GY);
+  cx.fillStyle='#5c4a2f';cx.fillRect(0,GY,W,4);
+  cx.fillStyle='rgba(0,0,0,.35)';
+  for(let i=0;i<W;i+=20){const off=(i-t*speed)%W;cx.fillRect(off<0?off+W:off,GY-1,2,2);}
+  if(!dead){
+    t+=1;dist+=speed/8;
+    speed=Math.min(11,5+dist/400);
+    if(t%Math.max(30,72-Math.floor(dist/40))===0)addObs();
+    document.getElementById('sc').textContent=Math.floor(dist);
+    // 物理
+    vy+=0.72;py+=vy;
+    size=sliding&&py>=GY-2?22:44;
+    if(py>GY){py=GY;vy=0;jumps=2;}
+    // 障碍推进
+    for(const o of obs){o.x-=speed;}
+    obs=obs.filter(o=>o.x+o.w>-20);
+    // 碰撞
+    const feet=py,head=py-size,left=px-16,right=px+16;
+    for(const o of obs){
+      if(o.x>right||o.x+o.w<left)continue;
+      if(o.kind==='gem'){
+        if(o.y+o.h>head&&o.y<feet){o.hit=true;gem++;
+          document.getElementById('gem').textContent=gem;
+          for(let i=0;i<6;i++)parts.push({x:o.x+o.w/2,y:o.y+o.h/2,vx:(Math.random()-0.5)*4,vy:-Math.random()*3-1,c:'#3ecf6a',life:0.7});}
+        continue;
+      }
+      if(o.kind==='web'){                        // 头顶，跳起时才撞
+        if(head<o.y+o.h)die();
+      }else if(o.kind==='lava'){                  // 地面，必须跳
+        if(feet>=o.y-2)die();
+      }else{                                       // creeper / bar
+        if(feet>o.y&&head<o.y+o.h)die();
+      }
+    }
+    obs=obs.filter(o=>!o.hit);
+  }
+  // 粒子
+  for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=0.25;p.life-=0.05;
+    cx.fillStyle=p.c;cx.fillRect(p.x-2,p.y-2,4,4);}
+  parts=parts.filter(p=>p.life>0);
+  // 画障碍
+  for(const o of obs){
+    if(o.kind==='creeper'){
+      cx.fillStyle='#4fae3d';cx.fillRect(o.x,o.y,o.w,o.h);
+      cx.fillStyle='#111';cx.fillRect(o.x+6,o.y+8,6,6);cx.fillRect(o.x+22,o.y+8,6,6);
+      cx.fillRect(o.x+13,o.y+18,8,6);
+    }else if(o.kind==='lava'){
+      cx.fillStyle='#ff5f10';cx.fillRect(o.x,o.y,o.w,o.h);
+      cx.fillStyle='#ffce7a';for(let i=0;i<o.w;i+=8)cx.fillRect(o.x+i,o.y+2,3,2);
+    }else if(o.kind==='web'){
+      cx.strokeStyle='#e8ecf4';cx.lineWidth=1;cx.beginPath();
+      for(let i=0;i<o.w;i+=6){cx.moveTo(o.x+i,o.y);cx.lineTo(o.x+o.w-i,o.y+o.h);}
+      for(let i=0;i<o.h;i+=6){cx.moveTo(o.x,o.y+i);cx.lineTo(o.x+o.w,o.y+o.h-i);}
+      cx.stroke();
+    }else if(o.kind==='bar'){
+      cx.fillStyle='#8a8f9c';cx.fillRect(o.x,o.y,o.w,o.h);
+      cx.fillStyle='#5a5f6d';cx.fillRect(o.x,o.y,o.w,3);cx.fillRect(o.x,o.y+o.h-3,o.w,3);
+    }else if(o.kind==='gem'){
+      cx.fillStyle='#3ecf6a';
+      cx.beginPath();cx.moveTo(o.x+o.w/2,o.y);cx.lineTo(o.x+o.w,o.y+o.h/2);
+      cx.lineTo(o.x+o.w/2,o.y+o.h);cx.lineTo(o.x,o.y+o.h/2);cx.fill();
+      cx.fillStyle='#a0f0b8';cx.fillRect(o.x+o.w/2-2,o.y+4,4,4);
+    }
+  }
+  // 主角（史蒂夫）
+  drawSteve(px,py,size);
+  // 结束提示
+  if(dead){
+    cx.fillStyle='rgba(0,0,0,.65)';cx.fillRect(0,0,W,H);
+    cx.fillStyle='#fff';cx.textAlign='center';cx.font='bold 30px sans-serif';
+    cx.fillText('💥 撞上了！',W/2,H/2-24);
+    cx.font='16px sans-serif';
+    cx.fillText('距离 '+Math.floor(dist)+' m　最远 '+hi+' m　💎'+gem,W/2,H/2+6);
+    cx.fillText('点击 / 空格 重新开始',W/2,H/2+36);
+  }
+}
+function drawSteve(x,y,s){
+  const w=s===22?36:18,h=s;                    // 滑铲时变宽变矮
+  // 身体
+  cx.fillStyle='#3d6aa8';cx.fillRect(x-w/2,y-h,w,h*0.6);
+  // 头
+  cx.fillStyle='#c9a678';cx.fillRect(x-9,y-h,18,h*0.4);
+  cx.fillStyle='#4a2f1a';cx.fillRect(x-9,y-h,18,4);   // 头发
+  cx.fillStyle='#111';cx.fillRect(x-6,y-h+7,3,3);cx.fillRect(x+3,y-h+7,3,3);
+  // 腿
+  if(s===22){cx.fillStyle='#3d3d5a';cx.fillRect(x-w/2+4,y-4,w-8,4);}
+  else{cx.fillStyle='#3d3d5a';
+    const swing=Math.sin(t*0.6)*3;
+    cx.fillRect(x-6,y-h*0.4,5,h*0.4+swing);
+    cx.fillRect(x+1,y-h*0.4,5,h*0.4-swing);}
+}
+function die(){
+  if(dead)return;
+  dead=true;
+  if(Math.floor(dist)>hi){hi=Math.floor(dist);localStorage.setItem('mc_run_hi',hi);
+    document.getElementById('hi').textContent=hi;}
+}
+reset();step();
+</script>
+</body>
+</html>

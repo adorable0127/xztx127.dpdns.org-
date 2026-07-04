@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>来电 · 反诈骗模拟</title>
+<style>
+:root{--bg:#0e1016;--phone:#1a1d26;--line:#2c3140;--txt:#e9edf5;--sub:#98a3b8;
+  --green:#4fd472;--red:#ff5c5c;--gold:#ffd24d;--blue:#5aa7ff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:"Microsoft YaHei",system-ui,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px}
+a.back{align-self:flex-start;color:var(--sub);text-decoration:none;font-size:13px}
+.title{font-size:20px;letter-spacing:5px;margin:6px 0 2px}
+.sub{color:var(--sub);font-size:12px;margin-bottom:10px}
+.hud{display:flex;gap:10px;margin-bottom:10px;font-size:13px;flex-wrap:wrap;justify-content:center}
+.hud span{background:var(--phone);border:1px solid var(--line);padding:6px 12px;border-radius:99px}
+.hud b.bad{color:var(--red)}.hud b.good{color:var(--green)}.hud b.warn{color:var(--gold)}
+.phone{width:min(390px,95vw);background:var(--phone);border:1px solid var(--line);
+  border-radius:26px;padding:14px 12px 18px;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.notch{width:110px;height:16px;background:#000;border-radius:0 0 12px 12px;margin:-14px auto 8px}
+#screen{height:470px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px}
+.msg{max-width:86%;padding:10px 12px;border-radius:14px;font-size:13.5px;line-height:1.8;white-space:pre-wrap}
+.them{background:#262b38;align-self:flex-start;border-top-left-radius:4px}
+.me{background:#1f4a2c;align-self:flex-end;border-top-right-radius:4px}
+.sys{align-self:center;color:var(--sub);font-size:12px;text-align:center;max-width:95%}
+.warn{align-self:center;background:#3a2d10;border:1px solid #6b5518;color:#ffe08a;
+  font-size:12.5px;border-radius:10px;padding:8px 12px;max-width:95%;line-height:1.8}
+.call{align-self:center;width:92%;background:#12151d;border:1px solid var(--line);
+  border-radius:16px;padding:14px;text-align:center}
+.call .num{font-size:17px;font-weight:bold}
+.call .who{color:var(--sub);font-size:12px;margin:2px 0 10px}
+.sms{align-self:stretch;background:#12151d;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:13px;line-height:1.8}
+.sms .from{color:var(--gold);font-size:12px;margin-bottom:4px}
+#acts{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+button{font-family:inherit;cursor:pointer;border:none;border-radius:10px;padding:12px;font-size:14px;
+  background:#2a3140;color:var(--txt);transition:.12s;text-align:left}
+button:hover{background:#37405a}
+button.good{background:#1f4a2c}button.good:hover{background:#276039}
+button.bad{background:#4a2430}button.bad:hover{background:#5d2c3c}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:50;padding:14px}
+.card{background:var(--phone);border:1px solid var(--line);border-radius:16px;width:min(560px,95vw);max-height:92vh;overflow:auto;padding:22px}
+.card h2{margin-bottom:10px}.card p{font-size:14px;line-height:2;color:#d7deec;margin-bottom:8px}
+.tips{background:#12151d;border-left:4px solid var(--gold);padding:10px 12px;font-size:13px;line-height:2;margin:12px 0;color:#ffe9b0}
+.hot{color:var(--gold);font-weight:bold}
+</style>
+</head>
+<body>
+<a class="back" href="../arcade.html">← 返回游戏厅</a>
+<div class="title">来 电</div>
+<div class="sub">反诈骗模拟 · 以下每一条话术都来自公开的真实案例</div>
+<div class="hud">
+  <span>💰 存款 <b id="hCash">56,000</b></span>
+  <span>💳 负债 <b id="hDebt" class="bad">0</b></span>
+  <span>📊 征信 <b id="hCredit" class="good">720</b></span>
+  <span>🛡 识破 <b id="hBlock" class="good">0</b></span>
+</div>
+<div class="phone">
+  <div class="notch"></div>
+  <div id="screen"></div>
+  <div id="acts"></div>
+</div>
+<div class="overlay" id="endOverlay"><div class="card" id="endCard"></div></div>
+
+<script>
+const S={cash:56000,debt:0,credit:720,blocked:0,fooled:0,idx:0,over:false,inTrap:false};
+const $=id=>document.getElementById(id);
+const fmt=n=>Math.round(n).toLocaleString('zh-CN');
+function hud(){$('hCash').textContent=fmt(S.cash);$('hDebt').textContent=fmt(S.debt);
+  $('hCredit').textContent=S.credit;$('hBlock').textContent=S.blocked;
+  $('hCredit').className=S.credit>=650?'good':S.credit>=520?'warn':'bad';}
+function push(html,cls){const d=document.createElement('div');d.className='msg '+cls;
+  d.innerHTML=html;$('screen').appendChild(d);$('screen').scrollTop=1e9;return d;}
+function acts(list){const box=$('acts');box.innerHTML='';
+  for(const[t,fn,cls]of list){const b=document.createElement('button');b.innerHTML=t;
+    if(cls)b.className=cls;b.onclick=()=>{box.innerHTML='';fn();};box.appendChild(b);}}
+function delay(fn,t){setTimeout(fn,t||600);}
+function loseMoney(v,why){S.cash-=v;if(S.cash<0){S.debt+=-S.cash;S.cash=0;S.credit-=25;}
+  S.fooled++;push('💸 <b style="color:var(--red)">-'+fmt(v)+' 元</b>　'+(why||''),'sys');hud();}
+/* ———— 骗局脚本库 ———— */
+const SCAMS=[
+/* 1. 刷单返利（主线大局，会连环） */
+{intro(){
+  push('<div class="from">【短信】106xxxx8765</div>「兼职」宝妈学生均可，动动手指日入300+。给商家点赞关注即可返利，添加客服领任务 👉 jd-fanli.com/xx','sms');
+  acts([
+    ['🖱 点击链接，加"客服"看看',()=>scam1_hook()],
+    ['🗑 删除短信并举报',()=>safe('这类"点赞返利""刷单兼职"是发案量第一的诈骗类型。')],
+  ]);
+},},
+/* 2. 假冒电商客服 */
+{intro(){
+  push('<div class="call"><div class="num">📞 +86 0571-XXXX</div><div class="who">来电显示：某东客服中心</div>「先生您好，您购买的儿童保温杯检测出质量问题，公司给您<b>三倍赔付</b>，需要您配合在支付宝上操作退款……」</div>','them');
+  acts([
+    ['「好的，怎么操作？」（按对方说的开屏幕共享）',()=>{
+      push('对方引导你打开"屏幕共享"，并让你打开银行 APP"验证余额"。','sys');
+      push('⚠ 你的银行卡号、短信验证码全部实时展示在骗子屏幕上。','warn');
+      loseMoney(18800,'银行卡被转空（屏幕共享泄露验证码）');
+      lesson('真客服<b>绝不会</b>要求屏幕共享、索要验证码。退款只会原路退回，不需要"操作"。');
+    },'bad'],
+    ['「我自己去官方 APP 查订单」然后挂断',()=>safe('凡是主动来电谈"退款理赔"的，一律挂断，只认官方 APP 内客服。')],
+  ]);
+},},
+/* 3. 冒充公检法 */
+{intro(){
+  push('<div class="call"><div class="num">📞 +852 XXXX XXXX</div><div class="who">自称：XX市公安局刑侦队 王警官</div>「你的银行账户涉嫌洗钱 287 万，现在需要电话保密配合调查！把资金转入<b>安全账户</b>核查清白，否则马上逮捕！」对方还发来一张带你照片的"通缉令"。</div>','them');
+  acts([
+    ['吓坏了，按要求把存款转入"安全账户"',()=>{
+      loseMoney(Math.min(S.cash,30000),'转入所谓"安全账户"');
+      lesson('公检法<b>没有"安全账户"</b>，不会电话办案，更不会网上发"通缉令"。恐吓+保密+转账 = 100% 诈骗。');
+    },'bad'],
+    ['「我去附近派出所当面配合」并挂断回拨 110 核实',()=>safe('要求"电话保密、不许告诉家人"本身就是骗术核心——隔离你与所有能点醒你的人。')],
+  ]);
+},},
+/* 4. 杀猪盘 */
+{intro(){
+  push('<div class="from">【微信好友申请】"曼曼 Vivian"</div>「加错人了？不过看你朋友圈是个踏实的人～交个朋友吧 😊」几周热聊后，"她"透露自己在做「跨境金融数据分析」，收益截图惊人，愿意「带你一起上车」。','sms');
+  acts([
+    ['被"感情+收益"打动，在她给的平台投 5,000 试试',()=>{
+      push('平台显示 +8%！还能提现。你又投了更多……然后账户"被风控"，"曼曼"也失联了。','sys');
+      loseMoney(24000,'杀猪盘：小额返利养信任，大额进场即收割');
+      lesson('网恋+荐股/带单+特殊 APP = <b>杀猪盘</b>。"能提现"是喂猪，"风控冻结"是杀猪。');
+    },'bad'],
+    ['视频核实身份？对方总推脱 → 拉黑举报',()=>safe('凡是网友引导你到<b>陌生平台投资</b>的，无论聊了多久、多真诚，都是剧本。')],
+  ]);
+},},
+/* 5. 注销校园贷 */
+{intro(){
+  push('<div class="call"><div class="num">📞 170-XXXX-XXXX</div><div class="who">自称：XX金融客服</div>「国家规定要清理大学生贷款记录，检测到你名下有一笔校园贷未注销，<b>影响征信</b>！需要把额度提空转到对公账户走清零流程……」</div>','them');
+  acts([
+    ['担心征信，按流程把网贷额度借出来转过去',()=>{
+      loseMoney(0,'');S.debt+=39000;S.credit-=60;hud();
+      push('💳 你"清零"的方式是：真的去借了 39,000 转给骗子。','sys');
+      lesson('征信记录<b>无法人工"注销"</b>，也没有"清零流程"。让你去借钱再转出的，全是诈骗。');
+    },'bad'],
+    ['「征信问题我去人民银行官网查」挂断',()=>safe('查征信只认：中国人民银行征信中心官网 / 各大银行 APP。')],
+  ]);
+},},
+/* 6. ETC / 快递钓鱼短信 */
+{intro(){
+  push('<div class="from">【短信】106xxxx</div>「您的ETC已失效，请点击 etc-xxx.top 重新认证，逾期影响出行」','sms');
+  acts([
+    ['点开链接，按提示输入银行卡号和验证码',()=>{
+      loseMoney(6200,'钓鱼网站盗刷');
+      lesson('短信里的链接一律不点。域名 .top/.xyz + 要卡号验证码 = 钓鱼。');
+    },'bad'],
+    ['删除。要办 ETC 去官方 APP',()=>safe('拿不准时，打<b>官方 App/官网上查到的电话</b>回拨核实，而不是短信里的号码。')],
+  ]);
+},},
+];
+/* ———— 刷单主线（连环收割演示） ———— */
+function scam1_hook(){
+  S.inTrap=true;
+  push('你添加了"客服小雅"。','sys');
+  push('小雅：「欢迎加入～第一单：给这个视频点赞截图，返 <b>8 元</b>」','them');
+  delay(()=>{
+    push('你照做了。','me');
+    push('💰 微信到账 <b style="color:var(--green)">+8.00 元</b>','sys');
+    push('小雅：「效率真高！进阶任务：垫付 100 元拍下指定商品，返 130！」','them');
+    acts([
+      ['垫付 100（反正刚才真到账了）',()=>{
+        S.cash-=100;hud();
+        delay(()=>{push('💰 到账 <b style="color:var(--green)">+130 元</b>！你开始觉得这是正经兼职。','sys');scam1_big();},700);
+      }],
+      ['⚠ 等等……先返利后垫付，这套路不对，撤！',()=>safe('前几单"真返利"是鱼饵，为的就是后面的大额"连单任务"。',true)],
+    ]);
+  },700);
+}
+function scam1_big(){
+  push('小雅：「恭喜升级 VIP！<b>连单任务</b>：垫付 3 单共 6,000，一起返 7,800。注意：<b>做一半退出不返款哦</b>」','them');
+  acts([
+    ['垫付 6,000',()=>{
+      S.cash-=6000;hud();
+      push('系统提示：「任务数据异常，需再完成一组 20,000 的修复单才能一起提现」','them');
+      acts([
+        ['再转 20,000"修复"（不然前面的钱就没了）',()=>{
+          S.cash-=20000;hud();
+          push('系统提示：「操作超时，账户冻结。缴纳 50,000 解冻金后全额返还」','them');
+          push('⚠ 沉没成本绑架：每一步都拿"前面的钱"逼你继续投入。','warn');
+          acts([
+            ['去借网贷凑 50,000 解冻',()=>{
+              S.debt+=50000;S.credit-=70;hud();
+              push('钱转过去的瞬间，"小雅"和"系统"同时把你拉黑。','sys');
+              lesson('刷单返利完整链条：小额真返 → 连单垫付 → "数据异常" → "解冻金"。<b>只要开始垫付，后面每一步都是深渊。</b>');
+            },'bad'],
+            ['醒了！立即停止，保存记录报警',()=>{
+              push('你拨通了 110，把聊天记录、转账凭证全部提供给警方。','me');
+              lesson('虽然损失了 26,100 元，但你在"解冻金"环节及时止损——这一步骗子往往能骗走最多的钱。');
+            },'good'],
+          ]);
+        },'bad'],
+        ['不追了，认栽止损 + 报警',()=>{push('你截图全部记录，拨打了 110。','me');
+          lesson('记住这个铁律：<b>让你先垫钱的兼职都是诈骗</b>；被骗后追加的每一分"解冻/修复"款，都会一去不回。');},'good'],
+      ]);
+    },'bad'],
+    ['「做一半不返款」？这就是绑架，收手举报',()=>safe('"连单、组合单、不做完不返"是刷单诈骗的标志性话术。',true)],
+  ]);
+}
+/* ———— 通用流转 ———— */
+function safe(note,fromTrap){
+  S.blocked++;S.inTrap=false;hud();
+  push('✅ 你成功识破了这个骗局。','sys');
+  push('🛡 '+note,'warn');
+  next();
+}
+function lesson(note){
+  S.inTrap=false;
+  push('🛡 '+note,'warn');
+  next();
+}
+function next(){
+  hud();
+  if(S.credit<=420||S.debt>=80000){return ending('broke');}
+  S.idx++;
+  if(S.idx>=SCAMS.length)return ending(S.fooled===0?'perfect':'end');
+  delay(()=>{push('—— 几天后 ——','sys');SCAMS[S.idx].intro();},900);
+}
+function ending(type){
+  S.over=true;const el=$('endCard');
+  const sum='<p>📊 结算：识破骗局 <b>'+S.blocked+'</b> 个 / 上当 <b>'+S.fooled+'</b> 次；剩余存款 <b>'+fmt(S.cash)+
+    '</b>，负债 <b class="hot">'+fmt(S.debt)+'</b>，征信 <b>'+S.credit+'</b>。</p>';
+  const tips='<div class="tips">🛡 <b>防骗三板斧：</b><br>'+
+    '① <b>不听</b>——陌生来电谈钱，直接挂断；<b>不点</b>——短信里的链接一律不点；<b>不转</b>——凡要求转账、垫付、缴"保证金/解冻金"的，全是诈骗。<br>'+
+    '② 真警察、真客服、真银行：不会电话办案、不会要验证码、不会让你屏幕共享、没有"安全账户"。<br>'+
+    '③ 拿不准就打 <span class="hot">96110</span>（全国反诈专线）核实，被骗立即打 <span class="hot">110</span>，越快报警止付追回的可能越大。安装「国家反诈中心」APP 可自动预警。</div>';
+  let h='';
+  if(type==='perfect')h='<h2 style="color:var(--green)">🏆 全部识破！</h2><p>六个真实骗局，你一次都没有上钩。把这些话术讲给爸妈和孩子听——你就是全家的"人肉反诈 APP"。</p>'+sum+tips;
+  else if(type==='broke')h='<h2 style="color:var(--red)">💀 结局：血本无归</h2><p>存款清零、背上贷款、征信受损——而这一切，从"点了一下链接"开始。骗子不在乎你是谁，只在乎你会不会转账。</p>'+sum+tips+'<p style="color:var(--sub)">现实中，请立刻：停止一切转账 → 保存证据 → 拨打 110。</p>';
+  else h='<h2 style="color:var(--gold)">📱 通关</h2><p>有惊有险地过完了这段日子。被骗不丢人，<b>骗子才可耻</b>；重要的是每一次教训都变成免疫力。</p>'+sum+tips;
+  h+='<div style="display:flex;gap:10px;margin-top:12px"><button class="good" onclick="location.reload()">🔁 再来一次</button><button onclick="location.href=\'../arcade.html\'">返回游戏厅</button></div>';
+  el.innerHTML=h;$('endOverlay').style.display='flex';
+}
+/* ———— 开场 ———— */
+push('你叫<b>林晓</b>，普通上班族，存款 56,000。接下来的日子里，你的手机会不断收到"机会"与"麻烦"。','sys');
+push('🛡 提示：本游戏中所有话术均取材于警方公布的真实案例。','warn');
+hud();
+acts([['▶ 开始',()=>SCAMS[0].intro()]]);
+</script>
+</body>
+</html>

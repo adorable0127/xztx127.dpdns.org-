@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>末地迷宫</title>
+<style>
+body{margin:0;background:#0f0a18;color:#e8ecf4;font-family:"Microsoft YaHei",system-ui,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px;user-select:none}
+a.back{align-self:flex-start;color:#98a3b8;text-decoration:none;font-size:13px}
+h1{font-size:20px;letter-spacing:3px;margin:6px 0}
+.bar{display:flex;gap:12px;font-size:14px;margin-bottom:8px;flex-wrap:wrap;justify-content:center;align-items:center}
+.bar b{color:#ffd24d}
+select,button{font-family:inherit;font-size:13px;padding:6px 12px;border:none;border-radius:6px;cursor:pointer}
+select{background:#2a2540;color:#fff}button{background:#5a3d8a;color:#fff}
+canvas{background:#12071c;border:4px solid #000;outline:2px solid #4a2f68;image-rendering:pixelated;max-width:96vw;touch-action:none}
+.tip{color:#98a3b8;font-size:12px;margin-top:10px;text-align:center;line-height:1.8}
+#over{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:9}
+.card{background:#1c1428;border:2px solid #4a2f68;border-radius:12px;padding:26px;text-align:center}
+.card button{margin:10px 6px 0}.card .gray{background:#3a3050}
+</style>
+</head>
+<body>
+<a class="back" href="../arcade.html">← 返回游戏厅</a>
+<h1>🌌 末地迷宫</h1>
+<div class="bar">
+  尺寸 <select id="sz">
+    <option value="15">小 (15×15)</option>
+    <option value="21" selected>中 (21×21)</option>
+    <option value="29">大 (29×29)</option>
+  </select>
+  <button onclick="init()">🎲 换一张迷宫</button>
+  <span>🗝 钥匙 <b id="key">未拾取</b>　·　🟣 珍珠 <b id="pearl">3</b>　·　🚶 步数 <b id="step">0</b></span>
+</div>
+<canvas id="cv" width="580" height="580"></canvas>
+<div class="tip">WASD / 方向键移动 · C 键消耗末影珍珠向朝向传送 3 格（可穿墙）<br>先拾 🔑 钥匙 再走到 🌀 出口。视野受限，越靠近墙越暗。</div>
+<div id="over"><div class="card"><h2 id="ovT"></h2><p id="ovS"></p>
+  <button onclick="init()">🔁 新迷宫</button>
+  <button class="gray" onclick="location.href='../arcade.html'">返回</button></div></div>
+<script>
+const cv=document.getElementById('cv'),cx=cv.getContext('2d');
+let N,cell,maze,px,py,dir,keyGot,pearls,steps,over,exitP,keyP;
+const $=id=>document.getElementById(id);
+function init(){
+  N=+$('sz').value;
+  cell=Math.floor(cv.width/N);
+  gen();
+  px=1;py=1;dir=[1,0];keyGot=false;pearls=3;steps=0;over=false;
+  keyP=farthest(px,py);
+  exitP=farthest(keyP[0],keyP[1]);
+  $('over').style.display='none';hud();draw();
+}
+function hud(){
+  $('key').textContent=keyGot?'已拾取 ✅':'未拾取';
+  $('pearl').textContent=pearls;$('step').textContent=steps;
+}
+/* DFS 挖迷宫：奇数格是通道，偶数是墙 */
+function gen(){
+  maze=Array.from({length:N},()=>Array(N).fill(1));
+  const stack=[[1,1]];maze[1][1]=0;
+  while(stack.length){
+    const[x,y]=stack[stack.length-1];
+    const dirs=[[2,0],[-2,0],[0,2],[0,-2]].sort(()=>Math.random()-0.5);
+    let next=null;
+    for(const[dx,dy]of dirs){
+      const nx=x+dx,ny=y+dy;
+      if(nx>0&&ny>0&&nx<N-1&&ny<N-1&&maze[ny][nx]===1){next=[nx,ny,dx,dy];break;}
+    }
+    if(next){const[nx,ny,dx,dy]=next;maze[y+dy/2][x+dx/2]=0;maze[ny][nx]=0;stack.push([nx,ny]);}
+    else stack.pop();
+  }
+}
+function farthest(sx,sy){          // BFS 找最远可达点
+  const dist=Array.from({length:N},()=>Array(N).fill(-1));
+  const q=[[sx,sy]];dist[sy][sx]=0;
+  let best=[sx,sy],bd=0;
+  while(q.length){
+    const[x,y]=q.shift();
+    for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=x+dx,ny=y+dy;
+      if(nx<0||ny<0||nx>=N||ny>=N||maze[ny][nx]||dist[ny][nx]>=0)continue;
+      dist[ny][nx]=dist[y][x]+1;q.push([nx,ny]);
+      if(dist[ny][nx]>bd){bd=dist[ny][nx];best=[nx,ny];}
+    }
+  }
+  return best;
+}
+document.addEventListener('keydown',e=>{
+  const m={ArrowUp:[0,-1],KeyW:[0,-1],ArrowDown:[0,1],KeyS:[0,1],
+           ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]}[e.code];
+  if(m){dir=m;move(m[0],m[1]);e.preventDefault();return;}
+  if(e.code==='KeyC'){throwPearl();e.preventDefault();}
+});
+let tx,ty;
+cv.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY;},{passive:true});
+cv.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
+  if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
+  if(Math.abs(dx)>Math.abs(dy)){dir=[dx>0?1:-1,0];move(dir[0],0);}
+  else{dir=[0,dy>0?1:-1];move(0,dir[1]);}
+},{passive:true});
+function move(dx,dy){
+  if(over)return;
+  const nx=px+dx,ny=py+dy;
+  if(nx<0||ny<0||nx>=N||ny>=N||maze[ny][nx])return;
+  px=nx;py=ny;steps++;
+  check();
+}
+function throwPearl(){
+  if(over||pearls<=0)return;
+  let nx=px,ny=py;
+  for(let k=0;k<3;k++){
+    const tx=nx+dir[0],ty=ny+dir[1];
+    if(tx<0||ty<0||tx>=N||ty>=N)break;
+    nx=tx;ny=ty;                                    // 允许穿墙
+  }
+  if(nx===px&&ny===py)return;
+  pearls--;px=nx;py=ny;steps++;
+  check();
+}
+function check(){
+  if(!keyGot&&px===keyP[0]&&py===keyP[1]){keyGot=true;}
+  if(keyGot&&px===exitP[0]&&py===exitP[1]){
+    over=true;
+    $('ovT').textContent='🏆 逃出末地！';
+    $('ovS').textContent='共走 '+steps+' 步 · 剩余珍珠 '+pearls;
+    setTimeout(()=>$('over').style.display='flex',300);
+  }
+  hud();draw();
+}
+function draw(){
+  cx.fillStyle='#12071c';cx.fillRect(0,0,cv.width,cv.height);
+  const off=(cv.width-N*cell)/2;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const dist=Math.max(Math.abs(x-px),Math.abs(y-py));
+    const dark=Math.max(0,Math.min(1,(dist-4)/6));      // 视野半径 ~4
+    if(maze[y][x]){
+      cx.fillStyle='#2a1a3a';cx.fillRect(off+x*cell,off+y*cell,cell,cell);
+      cx.fillStyle='#3d2a58';cx.fillRect(off+x*cell,off+y*cell,cell,cell*0.35);
+      cx.fillStyle='rgba(0,0,0,'+dark*.85+')';cx.fillRect(off+x*cell,off+y*cell,cell,cell);
+    }else{
+      cx.fillStyle='#e5d0b0';cx.fillRect(off+x*cell,off+y*cell,cell,cell);        // 末地石
+      cx.fillStyle='rgba(0,0,0,.15)';cx.fillRect(off+x*cell,off+y*cell,2,cell);
+      cx.fillRect(off+x*cell,off+y*cell,cell,2);
+      cx.fillStyle='rgba(0,0,0,'+dark*.88+')';cx.fillRect(off+x*cell,off+y*cell,cell,cell);
+    }
+  }
+  // 钥匙
+  if(!keyGot){
+    const k=keyP,dist=Math.max(Math.abs(k[0]-px),Math.abs(k[1]-py));
+    if(dist<=5){
+      cx.fillStyle='#ffd24d';cx.font=(cell*0.9)+'px sans-serif';cx.textAlign='center';cx.textBaseline='middle';
+      cx.fillText('🔑',off+k[0]*cell+cell/2,off+k[1]*cell+cell/2);
+    }
+  }
+  // 出口（拾取钥匙后可见）
+  if(keyGot){
+    const e=exitP;
+    cx.fillStyle='#c9a2ff';cx.beginPath();cx.arc(off+e[0]*cell+cell/2,off+e[1]*cell+cell/2,cell*0.42,0,Math.PI*2);cx.fill();
+    cx.fillStyle='#5a3d8a';cx.beginPath();cx.arc(off+e[0]*cell+cell/2,off+e[1]*cell+cell/2,cell*0.28,0,Math.PI*2);cx.fill();
+    cx.fillStyle='#c9a2ff';cx.font=(cell*0.7)+'px sans-serif';cx.textAlign='center';cx.textBaseline='middle';
+    cx.fillText('🌀',off+e[0]*cell+cell/2,off+e[1]*cell+cell/2);
+  }
+  // 玩家（史蒂夫）
+  cx.fillStyle='#3d6aa8';cx.fillRect(off+px*cell+cell*0.15,off+py*cell+cell*0.15,cell*0.7,cell*0.7);
+  cx.fillStyle='#c9a678';cx.fillRect(off+px*cell+cell*0.25,off+py*cell+cell*0.15,cell*0.5,cell*0.35);
+  cx.fillStyle='#111';
+  const eo=dir[0]!==0?dir[0]*cell*0.06:0,eo2=dir[1]<0?-cell*0.02:0;
+  cx.fillRect(off+px*cell+cell*0.34+eo,off+py*cell+cell*0.25+eo2,cell*0.08,cell*0.08);
+  cx.fillRect(off+px*cell+cell*0.58+eo,off+py*cell+cell*0.25+eo2,cell*0.08,cell*0.08);
+  // 视野遮罩（径向渐变）
+  const cxs=off+px*cell+cell/2,cys=off+py*cell+cell/2;
+  const rd=cell*5.5;
+  const gr=cx.createRadialGradient(cxs,cys,cell,cxs,cys,rd);
+  gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,.75)');
+  cx.fillStyle=gr;cx.fillRect(0,0,cv.width,cv.height);
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>精致陷阱 · 反网贷模拟</title>
+<style>
+:root{--bg:#141118;--panel:#201a28;--line:#3a3048;--txt:#ece6f4;--sub:#a598b8;
+  --gold:#ffd24d;--red:#ff5c6e;--green:#5dd977;--pink:#ff8ac2}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:"Microsoft YaHei",system-ui,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:14px}
+a.back{align-self:flex-start;color:var(--sub);text-decoration:none;font-size:13px;margin-bottom:6px}
+h1{font-size:22px;letter-spacing:5px}
+.sub{color:var(--sub);font-size:12px;margin:4px 0 12px;text-align:center}
+.wrap{width:min(660px,96vw)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center}
+.stat small{display:block;color:var(--sub);font-size:11px}
+.stat b{font-size:15px}
+.stat b.bad{color:var(--red)}.stat b.good{color:var(--green)}.stat b.warn{color:var(--gold)}
+#log{background:#171220;border:1px solid var(--line);border-radius:10px;height:290px;
+  overflow-y:auto;padding:12px;font-size:13.5px;line-height:1.9;margin-bottom:10px}
+#log p{margin-bottom:6px}
+#log .sys{color:var(--sub)}#log .me{color:#e3d6ff}#log .ad{color:var(--pink)}
+#log .bad{color:var(--red)}#log .good{color:var(--green)}#log .warn{color:var(--gold)}
+#choices{display:flex;flex-direction:column;gap:8px}
+button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;padding:12px 14px;font-size:14px;
+  background:#2e2540;color:var(--txt);text-align:left;transition:.12s}
+button:hover{background:#3c3055}
+button.buy{background:#442a4e}button.buy:hover{background:#573763}
+button.loan{background:#4a2430}button.loan:hover{background:#5d2c3c}
+button.wise{background:#1f4a2c}button.wise:hover{background:#276039}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:50;padding:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:min(560px,95vw);max-height:92vh;overflow:auto;padding:22px}
+.card h2{margin-bottom:10px}.card p{font-size:14px;line-height:2;color:#e0d8ee;margin-bottom:8px}
+.tips{background:#171220;border-left:4px solid var(--gold);padding:10px 12px;font-size:13px;line-height:2;margin:12px 0;color:#ffe9b0}
+.hot{color:var(--gold);font-weight:bold}
+</style>
+</head>
+<body>
+<a class="back" href="../arcade.html">← 返回游戏厅</a>
+<h1>精 致 陷 阱</h1>
+<div class="sub">反网贷模拟 · "月薪五千，活成月薪五万" 的 18 个月</div>
+<div class="wrap">
+  <div class="stats">
+    <div class="stat"><small>📅 月份</small><b id="sM">第 1 月</b></div>
+    <div class="stat"><small>💰 存款</small><b id="sC">12,000</b></div>
+    <div class="stat"><small>💳 总负债</small><b id="sD" class="bad">0</b></div>
+    <div class="stat"><small>📊 征信</small><b id="sX" class="good">700</b></div>
+  </div>
+  <div id="log"></div>
+  <div id="choices"></div>
+</div>
+<div class="overlay" id="endOverlay"><div class="card" id="endCard"></div></div>
+
+<script>
+/* ============================================================
+ * 反网贷模拟：
+ *  · 消费主义诱惑事件 → 钱不够时"X呗/急速贷"永远秒批
+ *  · 多头借贷、以贷养贷利率越滚越高，逾期爆通讯录
+ *  · 教育点：日息万五=年化18%+；最低还款的复利陷阱
+ * ============================================================ */
+const S={m:1,cash:12000,credit:700,over:false,
+  loans:[],            // {name,principal,apr,monthly}
+  income:5800,cost:3200,wiseStreak:0,boughtVanity:0,savedTimes:0};
+const $=id=>document.getElementById(id);
+const fmt=n=>Math.round(n).toLocaleString('zh-CN');
+const debtTotal=()=>S.loans.reduce((a,l)=>a+l.principal,0);
+function hud(){$('sM').textContent='第 '+S.m+' 月';$('sC').textContent=fmt(S.cash);
+  $('sC').className=S.cash<1000?'bad':'';
+  $('sD').textContent=fmt(debtTotal());
+  $('sX').textContent=S.credit;
+  $('sX').className=S.credit>=650?'good':S.credit>=550?'warn':'bad';}
+function log(t,c){const p=document.createElement('p');p.className=c||'sys';p.innerHTML=t;
+  $('log').appendChild(p);$('log').scrollTop=1e9;}
+function choices(list){const box=$('choices');box.innerHTML='';
+  for(const[t,fn,cls]of list){const b=document.createElement('button');b.innerHTML=t;
+    if(cls)b.className=cls;b.onclick=()=>{box.innerHTML='';fn();};box.appendChild(b);}}
+/* ———— 消费事件库（华而不实清单） ———— */
+const WANTS=[
+ {n:'新款折叠屏手机',p:9999,ad:'「旧手机才用一年？可它拍照没有 AI 消除啊！首发限量，<b>分期免息*</b>」（*仅前 3 期）'},
+ {n:'限量联名球鞋',p:3899,ad:'「穿上它你就是这条街最靓的仔。现在不抢，转手就翻倍！」（其实三个月后跌破发售价）'},
+ {n:'轻奢包包',p:6800,ad:'「精致女孩/男孩人手一只，上班背它气场两米八」'},
+ {n:'网红旅拍套餐',p:5200,ad:'「人生要有说走就走的旅行！九宫格不发，等于没去」'},
+ {n:'医美"轻改造"',p:8800,ad:'「变美要趁早，颜值就是生产力～今日下单立减 1000」'},
+ {n:'顶配游戏本',p:12999,ad:'「你的电脑打不了 4K？装备不行怎么上分！」（你主要用来看网课）'},
+ {n:'健身年卡+私教',p:6600,ad:'「办卡=自律！」（历史数据：你去年一共去了 4 次）'},
+ {n:'盲盒端盒×3',p:1554,ad:'「隐藏款概率 1/144，端三盒稳了！」（并不）'},
+];
+/* ———— 贷款产品 ———— */
+function offerLoan(need,after){
+  log('📱 页面自动弹出：「<b>额度评估通过！</b>最高可借 50,000，<b>日息低至万五</b>，3 分钟到账」','ad');
+  log('<span class="warn">换算一下：日息 0.05% ≈ 年化 18.25%，加上"服务费/担保费"，很多产品综合成本超 24% 甚至 36%。</span>','warn');
+  choices([
+    ['借 '+fmt(need)+'（"随心花"，年化 18%）',()=>takeLoan('随心花',need,0.18,after),'loan'],
+    ['多借点：'+fmt(need+5000)+'（"急速贷"，年化 24%+砍头息5%）',()=>takeLoan('急速贷',need+5000,0.24,after,0.05),'loan'],
+    ['不借了，这东西不买了',()=>{S.savedTimes++;log('你退出了页面。那股"必须拥有"的劲儿，五分钟后就过去了。','good');after();},'wise'],
+  ]);
+}
+function takeLoan(name,amt,apr,after,cut){
+  const got=Math.round(amt*(1-(cut||0)));
+  S.cash+=got;
+  S.loans.push({name,principal:amt,apr,monthly:Math.max(300,Math.round(amt/12*(1+apr/2)))});
+  S.credit-=S.loans.length>=3?30:10;
+  log('💳 「'+name+'」放款 '+fmt(got)+(cut?'（合同金额 '+fmt(amt)+'，"服务费"先扣 '+fmt(amt-got)+'）':'')+'。当前共 '+S.loans.length+' 笔在贷。','bad');
+  if(S.loans.length===3)log('<span class="warn">⚠ 大数据风控已把你标记为「多头借贷」用户——以后正规银行的房贷车贷都会受影响。</span>','warn');
+  hud();after();
+}
+/* ———— 月度结算 ———— */
+function monthEnd(){
+  S.m++;
+  S.cash+=S.income-S.cost;
+  log('———— 第 '+S.m+' 月 ————　工资 +'+fmt(S.income)+'　房租生活 -'+fmt(S.cost),'sys');
+  let due=0;
+  for(const l of S.loans){
+    const interest=Math.round(l.principal*l.apr/12);
+    l.principal+=interest;due+=l.monthly;
+  }
+  if(due>0){
+    if(S.cash>=due){
+      S.cash-=due;
+      for(const l of S.loans){l.principal=Math.max(0,l.principal-l.monthly*0.7);}
+      S.loans=S.loans.filter(l=>l.principal>50);
+      log('偿还各平台月供合计 -'+fmt(due)+'（其中一大半是利息）','sys');
+    }else{
+      S.credit-=45;
+      log('<b class="bad">⚠ 逾期！</b>违约金上浮、征信 -45。催收开始打你通讯录里的号码——你妈妈问你"是不是出什么事了"。','bad');
+      choices([
+        ['🩸 以贷养贷：再借一笔还这笔（年化 36%）',()=>takeLoan('转单贷',Math.round(due*1.4),0.36,()=>{log('拆东墙补西墙——墙会越来越高。','warn');afterMonth();}),'loan'],
+        ['📞 向父母坦白，请求周转',()=>{
+          S.cash+=8000;S.credit+=5;
+          log('电话那头沉默了很久。「先把窟窿堵上，回家再说。」你听见妈妈的声音在抖。','me');
+          log('虽然难堪，但这是<b>正确的一步</b>：亲情借款没有利息，更没有催收。','good');
+          hud();afterMonth();
+        },'wise'],
+        ['硬扛着（继续逾期）',()=>{S.credit-=20;log('电话一个接一个……','bad');hud();afterMonth();}],
+      ]);
+      return;
+    }
+  }
+  hud();afterMonth();
+}
+function afterMonth(){
+  if(S.credit<=380||debtTotal()>=90000)return ending('crash');
+  if(S.m>18)return ending(debtTotal()===0?(S.boughtVanity<=2?'wise':'ok'):'heavy');
+  nextEvent();
+}
+/* ———— 事件流 ———— */
+function nextEvent(){
+  const w=WANTS[(S.m+S.boughtVanity)%WANTS.length];
+  log('🛍 '+w.ad,'ad');
+  log('「'+w.n+'」——价格 <b>'+fmt(w.p)+'</b> 元。你的存款：'+fmt(S.cash),'sys');
+  const list=[];
+  if(S.cash>=w.p)list.push(['💸 全款拿下！',()=>{S.cash-=w.p;S.boughtVanity++;
+    log('你买下了「'+w.n+'」。开箱那一刻很爽——爽了大概两天。','me');hud();monthEnd();},'buy']);
+  list.push(['💳 钱不够/不想动存款 → 看看分期和网贷',()=>{S.boughtVanity++;offerLoan(Math.max(w.p, w.p-S.cash+500),monthEnd);},'buy']);
+  list.push(['🧊 冷静：需要 ≠ 想要，不买',()=>{
+    S.wiseStreak++;S.savedTimes++;
+    log('你合上了购物 App。'+(S.wiseStreak>=3?'连续忍住 '+S.wiseStreak+' 次，账户余额第一次稳步上涨，这种踏实感比开箱更爽。':'省下 '+fmt(w.p)+' 元。'),'good');
+    monthEnd();},'wise']);
+  if(debtTotal()>0&&S.cash>2000)list.push(['🧮 用存款提前结清一笔贷款',()=>{
+    const l=S.loans[0];const pay=Math.min(S.cash-500,l.principal);
+    l.principal-=pay;S.cash-=pay;S.credit+=6;
+    S.loans=S.loans.filter(x=>x.principal>50);
+    log('提前还款 '+fmt(pay)+'。少一天负债，就少一天利息。','good');hud();nextEvent();},'wise']);
+  choices(list);
+}
+/* ———— 结局 ———— */
+function ending(type){
+  S.over=true;const el=$('endCard');
+  const sum='<p>📊 复盘：冲动消费 <b>'+S.boughtVanity+'</b> 次 / 忍住 <b>'+S.savedTimes+'</b> 次；期末存款 <b>'+fmt(S.cash)+
+    '</b>，剩余负债 <b class="hot">'+fmt(debtTotal())+'</b>，征信 <b>'+S.credit+'</b>。</p>';
+  const tips='<div class="tips">💡 <b>关于网贷，你需要知道：</b><br>'+
+    '① "日息万五"≈年化 <b>18.25%</b>；叠加服务费后普遍 24%~36%。作为对比，余额宝约 1.5%——借钱的成本是存钱收益的 <b>15 倍以上</b>。<br>'+
+    '② "最低还款/账单分期"是复利陷阱：还进去的大半是利息，本金几乎不动。<br>'+
+    '③ 多头借贷会被大数据标记，影响未来房贷、车贷甚至求职（部分岗位查征信）。<br>'+
+    '④ 已经陷进去怎么办：<b>停止以贷养贷</b> → 列出全部债务按利率排序 → 优先结清高息 → 与平台协商延期/减免（保留录音）→ 必要时求助家人与正规法律援助（12348）。<br>'+
+    '⑤ 一个万能公式：<b>想要的东西，等 7 天再买</b>。七天后还想要，再用「不借钱能不能买得起」来决定。</div>';
+  let h='';
+  if(type==='wise')h='<h2 style="color:var(--green)">🌱 结局：清醒的人</h2><p>18 个月里，你几乎没有为"精致"买过单。存款突破五位数的那天，你请自己吃了顿好的——全款的，真香。</p>'+sum+tips;
+  else if(type==='ok')h='<h2 style="color:var(--gold)">😮‍💨 结局：及时刹车</h2><p>买过几次冲动的单，也点开过借款页面，但你最终把债清了。手指悬在"确认借款"上方又收回来的那几次，是这 18 个月里你最帅的时刻。</p>'+sum+tips;
+  else if(type==='heavy')h='<h2 style="color:var(--red)">⛓ 结局：负重前行</h2><p>18 个月过去，柜子里躺着落灰的球鞋和吃灰的健身卡，账户里躺着没还完的贷款。东西会过时，利息不会。</p>'+sum+tips;
+  else h='<h2 style="color:var(--red)">💥 结局：多头借贷，全面崩盘</h2><p>征信黑了，催收打爆了通讯录，你在家庭群里被 @ 了 17 次。那些"精致生活"的照片还躺在朋友圈里，配文是"人间值得"。</p>'+sum+tips+
+    '<p style="color:var(--sub)">如果现实中你正被网贷缠身：停止新增借款是第一步，也是最难的一步。你可以做到。</p>';
+  h+='<div style="display:flex;gap:10px;margin-top:12px"><button class="wise" onclick="location.reload()">🔁 再玩一次</button><button onclick="location.href=\'../arcade.html\'">返回游戏厅</button></div>';
+  el.innerHTML=h;$('endOverlay').style.display='flex';
+}
+/* ———— 开场 ———— */
+log('你叫<b>周雨</b>，25 岁，毕业两年，月薪 5,800，存款 12,000。','me');
+log('你的社交软件知道你想要什么——甚至比你自己更早知道。','sys');
+log('<span class="warn">规则：每月发工资扣生活费；任何时候都可以选择购买、借贷或忍住。坚持 18 个月，看看你会活成什么样。</span>','warn');
+hud();
+choices([['▶ 开始第一个月',nextEvent]]);
+</script>
+</body>
+</html>

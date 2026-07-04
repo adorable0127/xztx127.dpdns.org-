@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>村庄保卫战</title>
+<style>
+body{margin:0;background:#1a1c22;color:#e8ecf4;font-family:"Microsoft YaHei",system-ui,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px;user-select:none}
+a.back{align-self:flex-start;color:#98a3b8;text-decoration:none;font-size:13px}
+h1{font-size:20px;letter-spacing:3px;margin:4px 0}
+.hud{display:flex;gap:14px;font-size:13.5px;margin-bottom:6px;flex-wrap:wrap;justify-content:center}
+.hud b{color:#ffd24d}
+.hud b.bad{color:#ff5c5c}
+.hud b.good{color:#5dd977}
+#field{position:relative}
+canvas{display:block;background:#242830;border:3px solid #000;outline:2px solid #555;
+  image-rendering:pixelated;max-width:96vw}
+.shop{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center}
+.tower{background:#2a3140;border:2px solid #4a5468;border-radius:8px;padding:8px 12px;
+  min-width:96px;text-align:center;cursor:pointer;transition:.12s;font-size:12.5px}
+.tower.sel{border-color:#ffd24d;background:#3a3020}
+.tower.disabled{opacity:.4;cursor:not-allowed}
+.tower .ic{font-size:22px}
+.tower .price{color:#ffd24d;font-weight:bold}
+.tip{color:#98a3b8;font-size:12px;margin-top:8px;text-align:center;line-height:1.8}
+#over{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:9}
+.card{background:#242830;border:2px solid #555;border-radius:12px;padding:26px;text-align:center;max-width:92vw}
+button.big{font-family:inherit;cursor:pointer;border:none;border-radius:8px;padding:11px 20px;font-size:14px;background:#2f6b3a;color:#fff;margin:10px 6px 0}
+button.big.gray{background:#3a4050}
+</style>
+</head>
+<body>
+<a class="back" href="../arcade.html">← 返回游戏厅</a>
+<h1>🛡 村庄保卫战</h1>
+<div class="hud">🏠 村庄血量 <b id="hp" class="good">10</b>　💰 绿宝石 <b id="money">50</b>　🌊 第 <b id="wave">1</b> 波 / 10　僵尸剩余 <b id="left">0</b></div>
+<div id="field"><canvas id="cv" width="700" height="360"></canvas></div>
+<div class="shop" id="shop"></div>
+<div class="tip">左侧是村庄，僵尸从右侧涌来 · 点击下方防御工事再点空格子放置 · 干掉僵尸获得💰<br>10 波全部撑住即通关</div>
+<div id="over"><div class="card"><h2 id="ovT"></h2><p id="ovS"></p>
+  <button class="big" onclick="init()">🔁 再战一次</button>
+  <button class="big gray" onclick="location.href='../arcade.html'">返回</button>
+</div></div>
+<script>
+const cv=document.getElementById('cv'),cx=cv.getContext('2d');
+const COLS=7,ROWS=3,CW=cv.width/COLS,CH=cv.height/ROWS;
+const TOWERS={
+  arrow:{name:'箭塔',ic:'🏹',price:25,hp:20,cd:1.1,rng:cv.width,dmg:3,proj:'arrow',c:'#8a6f4a'},
+  snow: {name:'雪傀儡',ic:'⛄',price:40,hp:14,cd:0.7,rng:cv.width,dmg:1,proj:'snow',c:'#dfefff',slow:true},
+  iron: {name:'铁傀儡',ic:'🤖',price:75,hp:60,cd:0,  rng:0,       dmg:0,c:'#c0c4cf',block:true},
+  mine: {name:'TNT地雷',ic:'💣',price:35,hp:1,cd:0,   rng:60,      dmg:12,c:'#c43c3c',boom:true},
+};
+const CN={arrow:'箭塔',snow:'雪傀儡',iron:'铁傀儡',mine:'地雷'};
+let grid,mobs,projs,parts,money,hp,wave,waveList,spawnT,waveIdle,sel,over,won,frame;
+const $=id=>document.getElementById(id);
+function init(){
+  grid=Array.from({length:ROWS},()=>Array(COLS).fill(null));
+  mobs=[];projs=[];parts=[];
+  money=50;hp=10;wave=0;over=false;won=false;sel=null;
+  frame=0;
+  buildShop();hud();
+  $('over').style.display='none';
+  startWave();
+  loop();
+}
+function hud(){
+  $('hp').textContent=hp;$('money').textContent=money;$('wave').textContent=Math.max(1,wave);
+  $('left').textContent=(waveList?waveList.length:0)+mobs.length;
+  for(const el of $('shop').children){
+    const t=el.dataset.t;
+    el.classList.toggle('disabled',money<TOWERS[t].price);
+    el.classList.toggle('sel',sel===t);
+  }
+}
+function buildShop(){
+  $('shop').innerHTML='';
+  for(const k in TOWERS){
+    const t=TOWERS[k];
+    const d=document.createElement('div');d.className='tower';d.dataset.t=k;
+    d.innerHTML='<div class="ic">'+t.ic+'</div><div>'+t.name+'</div><div class="price">'+t.price+' 💰</div>';
+    d.onclick=()=>{if(money<t.price)return;sel=(sel===k?null:k);hud();};
+    $('shop').appendChild(d);
+  }
+}
+function startWave(){
+  wave++;
+  if(wave>10){won=true;end();return;}
+  const n=6+wave*2;
+  waveList=[];
+  for(let i=0;i<n;i++){
+    const r=Math.random();
+    let type='zombie';
+    if(wave>=3&&r<0.2)type='skeleton';
+    if(wave>=5&&r<0.1)type='fast';
+    if(wave>=7&&r<0.15)type='tank';
+    waveList.push(type);
+  }
+  spawnT=wave===1?2000:800;
+  waveIdle=false;
+}
+const MOB={
+  zombie:{hp:8,spd:24,dmg:2,c:'#4fae3d',face:'僵尸',gold:5},
+  skeleton:{hp:6,spd:32,dmg:1,c:'#dcdcdc',face:'骷髅',gold:6,ranged:true},
+  fast:{hp:5,spd:60,dmg:2,c:'#a04fae',face:'快僵',gold:8},
+  tank:{hp:24,spd:16,dmg:3,c:'#3a5a3a',face:'重甲',gold:14},
+};
+function place(cx0,cy0){
+  const c=Math.floor(cx0/CW),r=Math.floor(cy0/CH);
+  if(r<0||r>=ROWS||c<1||c>=COLS)return;   // 第 0 列留给村庄
+  if(grid[r][c])return;
+  if(!sel||money<TOWERS[sel].price)return;
+  money-=TOWERS[sel].price;
+  grid[r][c]={t:sel,r,c,hp:TOWERS[sel].hp,cd:0};
+  sel=null;hud();
+}
+cv.addEventListener('click',e=>{
+  const rect=cv.getBoundingClientRect();
+  place((e.clientX-rect.left)/rect.width*cv.width,(e.clientY-rect.top)/rect.height*cv.height);
+});
+function spawn(){
+  if(!waveList||!waveList.length)return;
+  const type=waveList.shift();
+  const r=Math.random()*ROWS|0;
+  const d={type,def:MOB[type],x:cv.width-8,y:r*CH+CH/2,r,hp:MOB[type].hp,cd:0,slow:0};
+  mobs.push(d);
+}
+function tick(dt){
+  spawnT-=dt*1000;
+  if(spawnT<=0&&waveList&&waveList.length){spawnT=800+Math.random()*400;spawn();}
+  if(waveList&&!waveList.length&&mobs.length===0&&!waveIdle&&!over){
+    waveIdle=true;
+    money+=15+wave*3;                     // 波间奖励
+    setTimeout(()=>{if(!over)startWave();},1400);
+  }
+  // 炮塔逻辑
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const g=grid[r][c];if(!g)continue;
+    const spec=TOWERS[g.t];
+    if(spec.boom){                         // 地雷：接触即爆
+      const near=mobs.find(m=>m.r===r&&Math.abs(m.x-(c*CW+CW/2))<28);
+      if(near){
+        for(const m of mobs)if(m.r===r&&Math.abs(m.x-(c*CW+CW/2))<70){
+          m.hp-=spec.dmg;
+          for(let i=0;i<8;i++)parts.push({x:m.x,y:m.y,vx:(Math.random()-0.5)*4,vy:-Math.random()*4,c:'#ff8a3d',life:0.6});
+        }
+        grid[r][c]=null;
+      }
+    }else if(spec.dmg>0){                  // 攻击塔
+      g.cd-=dt;
+      if(g.cd<=0){
+        const target=mobs.find(m=>m.r===r&&m.x>c*CW);
+        if(target){
+          g.cd=spec.cd;
+          projs.push({x:c*CW+CW/2,y:r*CH+CH/2,tx:target,dmg:spec.dmg,proj:spec.proj,slow:spec.slow});
+        }
+      }
+    }
+  }
+  // 抛射物
+  for(const p of projs){
+    const dx=p.tx.x-p.x,dy=p.tx.y-p.y,d=Math.hypot(dx,dy);
+    const sp=p.proj==='arrow'?520:360;
+    p.x+=dx/d*sp*dt;p.y+=dy/d*sp*dt;
+    if(d<12){p.tx.hp-=p.dmg;if(p.slow)p.tx.slow=1.5;
+      for(let i=0;i<3;i++)parts.push({x:p.tx.x,y:p.tx.y,vx:(Math.random()-0.5)*3,vy:-Math.random()*3,c:p.proj==='snow'?'#dfefff':'#c9a2ff',life:0.4});
+      p.dead=true;}
+  }
+  projs=projs.filter(p=>!p.dead);
+  // 僵尸推进
+  for(const m of mobs){
+    // 前方铁傀儡阻挡？
+    const c=Math.floor(m.x/CW);
+    const block=(c>=0&&c<COLS&&grid[m.r]&&grid[m.r][c]&&TOWERS[grid[m.r][c].t].block)?grid[m.r][c]:null;
+    if(block){
+      block.hp-=m.def.dmg*dt;
+      if(block.hp<=0)grid[m.r][c]=null;
+    }else{
+      const sp=m.def.spd*(m.slow>0?0.4:1);
+      m.x-=sp*dt;
+      m.slow=Math.max(0,m.slow-dt);
+    }
+    if(m.hp<=0){money+=m.def.gold;m.dead=true;
+      for(let i=0;i<6;i++)parts.push({x:m.x,y:m.y,vx:(Math.random()-0.5)*4,vy:-Math.random()*3,c:m.def.c,life:0.6});}
+    if(m.x<CW-4){hp-=m.def.dmg;m.dead=true;if(hp<=0){over=true;end();}}
+  }
+  mobs=mobs.filter(m=>!m.dead);
+  for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=0.25;p.life-=dt*1.6;}
+  parts=parts.filter(p=>p.life>0);
+  hud();
+}
+function draw(){
+  frame++;
+  cx.fillStyle='#242830';cx.fillRect(0,0,cv.width,cv.height);
+  // 网格
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    cx.fillStyle=(r+c)%2?'#2a2f3a':'#242830';
+    cx.fillRect(c*CW,r*CH,CW,CH);
+  }
+  // 村庄（第0列）
+  for(let r=0;r<ROWS;r++){
+    cx.fillStyle='#6b4a2b';cx.fillRect(4,r*CH+18,CW-8,CH-30);
+    cx.fillStyle='#8a5f3a';cx.fillRect(4,r*CH+18,CW-8,8);
+    cx.fillStyle='#c43c3c';
+    cx.beginPath();cx.moveTo(4,r*CH+18);cx.lineTo(CW/2,r*CH+2);cx.lineTo(CW-4,r*CH+18);cx.fill();
+    cx.fillStyle='#3a2418';cx.fillRect(CW/2-6,r*CH+CH-24,12,20);   // 门
+  }
+  // 塔
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const g=grid[r][c];if(!g)continue;
+    const spec=TOWERS[g.t];
+    const x=c*CW+CW/2,y=r*CH+CH/2;
+    cx.fillStyle=spec.c;
+    if(g.t==='arrow'){cx.fillRect(x-16,y-20,32,40);
+      cx.fillStyle='#c9a678';cx.fillRect(x-8,y-30,16,10);cx.fillStyle='#111';cx.fillRect(x-4,y-27,3,3);cx.fillRect(x+1,y-27,3,3);}
+    else if(g.t==='snow'){cx.beginPath();cx.arc(x,y+8,14,0,Math.PI*2);cx.fill();
+      cx.beginPath();cx.arc(x,y-8,10,0,Math.PI*2);cx.fill();
+      cx.fillStyle='#f5c542';cx.fillRect(x-3,y-9,6,3);
+      cx.fillStyle='#111';cx.fillRect(x-4,y-11,2,2);cx.fillRect(x+2,y-11,2,2);}
+    else if(g.t==='iron'){cx.fillRect(x-18,y-24,36,44);
+      cx.fillStyle='#8a8f9c';cx.fillRect(x-10,y-32,20,12);
+      cx.fillStyle='#c43c3c';cx.fillRect(x-6,y-27,3,3);cx.fillRect(x+3,y-27,3,3);
+      // 血条
+      cx.fillStyle='#2a2f3a';cx.fillRect(x-16,y+24,32,4);
+      cx.fillStyle='#5dd977';cx.fillRect(x-16,y+24,32*g.hp/spec.hp,4);}
+    else if(g.t==='mine'){cx.beginPath();cx.arc(x,y+4,14,0,Math.PI*2);cx.fill();
+      cx.fillStyle='#ffd24d';cx.fillRect(x-2,y-14,4,10);
+      cx.strokeStyle='#ffd24d';cx.beginPath();cx.arc(x,y-14,3,0,Math.PI*2);cx.stroke();}
+  }
+  // 僵尸
+  for(const m of mobs){
+    cx.fillStyle=m.def.c;cx.fillRect(m.x-12,m.y-14,24,32);
+    cx.fillStyle='#111';cx.fillRect(m.x-6,m.y-10,4,4);cx.fillRect(m.x+2,m.y-10,4,4);
+    cx.fillRect(m.x-6,m.y+2,12,4);
+    if(m.slow>0){cx.fillStyle='rgba(154,207,255,.4)';cx.fillRect(m.x-13,m.y-15,26,34);}
+    cx.fillStyle='#2a2f3a';cx.fillRect(m.x-14,m.y-20,28,3);
+    cx.fillStyle='#c43c3c';cx.fillRect(m.x-14,m.y-20,28*m.hp/m.def.hp,3);
+  }
+  // 抛射物
+  for(const p of projs){
+    cx.fillStyle=p.proj==='snow'?'#dfefff':'#c9a678';
+    cx.beginPath();cx.arc(p.x,p.y,p.proj==='snow'?5:3,0,Math.PI*2);cx.fill();
+  }
+  // 粒子
+  for(const p of parts){cx.fillStyle=p.c;cx.fillRect(p.x-2,p.y-2,4,4);}
+  // 选中提示：格子高亮
+  if(sel){
+    cx.strokeStyle='#ffd24d';cx.lineWidth=2;
+    cx.strokeRect(CW+2,2,cv.width-CW-4,cv.height-4);
+    cx.font='14px sans-serif';cx.fillStyle='#ffd24d';cx.textAlign='center';
+    cx.fillText('点击空地放置 '+CN[sel],cv.width/2,18);
+  }
+}
+let last=0;
+function loop(now){
+  requestAnimationFrame(loop);
+  if(!last)last=now||0;
+  const dt=Math.min(0.05,((now||0)-last)/1000);last=now||0;
+  if(!over)tick(dt);
+  draw();
+}
+function end(){
+  over=true;
+  $('ovT').textContent=won?'🏆 十波全胜！':'💀 村庄陷落…';
+  $('ovS').textContent='共坚持 '+Math.max(0,wave-1)+' 波，剩余村庄血量 '+Math.max(0,hp);
+  $('over').style.display='flex';
+}
+init();
+</script>
+</body>
+</html>

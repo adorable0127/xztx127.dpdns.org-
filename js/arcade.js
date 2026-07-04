@@ -25,6 +25,16 @@
     { file: 'games/simon.html',       icon: '🎵', name: '记忆音序',     en: 'Simon',        tag: '记忆', color: '#3fc1e8' },
     { file: 'games/tictactoe.html',   icon: '⭕', name: '井字棋',       en: 'Tic-Tac-Toe',  tag: '对战', color: '#f2d43b' },
     { file: 'games/sokoban.html',     icon: '📦', name: '推箱子',       en: 'Sokoban',      tag: '益智', color: '#c98a4b' },
+    /* ==== xztx127 增补：9 款（文件位于 game/ 目录）==== */
+    { file: 'game/anti-gambling.html', icon: '🎰', name: '回头是岸',   en: 'Anti-Gambling',   tag: '教育', color: '#5dd977' },
+    { file: 'game/anti-fraud.html',    icon: '📞', name: '来电',       en: 'Anti-Fraud',      tag: '教育', color: '#5aa7ff' },
+    { file: 'game/anti-loan.html',     icon: '💳', name: '精致陷阱',   en: 'Anti-Loan',       tag: '教育', color: '#ff8ac2' },
+    { file: 'game/malware-hunter.html',icon: '🧹', name: '卸载大师·2016', en: 'Malware Hunter', tag: '教育', color: '#ffd24d' },
+    { file: 'game/runner.html',        icon: '🏃', name: '洞穴跑酷',   en: 'Cave Runner',     tag: '街机', color: '#c9a2ff' },
+    { file: 'game/defense.html',       icon: '🛡', name: '村庄保卫战', en: 'Village Defense', tag: '塔防', color: '#8a5f3a' },
+    { file: 'game/connect4.html',      icon: '💎', name: '四子连珠',   en: 'Connect Four',    tag: '对战', color: '#3ecfe0' },
+    { file: 'game/maze.html',          icon: '🌌', name: '末地迷宫',   en: 'End Maze',        tag: '探险', color: '#a86eff' },
+    { file: 'game/fishing.html',       icon: '🎣', name: '湖畔钓鱼',   en: 'Fishing',         tag: '休闲', color: '#3d76a8' },
   ];
 
   /* =================== 2. 模组库 =================== */

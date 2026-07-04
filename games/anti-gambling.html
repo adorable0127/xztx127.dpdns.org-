@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>回头是岸 · 反赌博模拟</title>
+<style>
+:root{--bg:#14161c;--panel:#1e222c;--line:#333a48;--txt:#e8ecf4;--sub:#9aa6ba;
+  --gold:#ffd24d;--red:#ff5b5b;--green:#5dd977;--blue:#5aa7ff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:"Microsoft YaHei",system-ui,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:14px}
+a.back{align-self:flex-start;color:var(--sub);text-decoration:none;font-size:13px;margin-bottom:8px}
+a.back:hover{color:#fff}
+.wrap{width:min(680px,96vw)}
+h1{font-size:22px;text-align:center;letter-spacing:4px}
+.sub{text-align:center;color:var(--sub);font-size:12px;margin:4px 0 12px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;text-align:center}
+.stat small{display:block;color:var(--sub);font-size:11px;margin-bottom:2px}
+.stat b{font-size:16px}
+.stat b.bad{color:var(--red)}.stat b.good{color:var(--green)}.stat b.warn{color:var(--gold)}
+#log{background:#12151c;border:1px solid var(--line);border-radius:10px;height:300px;
+  overflow-y:auto;padding:12px;font-size:13.5px;line-height:1.9;margin-bottom:10px}
+#log p{margin-bottom:6px}
+#log .sys{color:var(--sub)}#log .me{color:#cfe3ff}#log .friend{color:#ffcf8a}
+#log .win{color:var(--green)}#log .lose{color:var(--red)}#log .warn{color:var(--gold)}
+#choices{display:flex;flex-direction:column;gap:8px}
+button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;padding:12px 14px;
+  font-size:14px;background:#2a3140;color:var(--txt);text-align:left;transition:.12s}
+button:hover{background:#37405a}
+button.danger{background:#4a2430}button.danger:hover{background:#5d2c3c}
+button.primary{background:#1f4a2c}button.primary:hover{background:#276039}
+button:disabled{opacity:.4;cursor:not-allowed}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);display:none;align-items:center;
+  justify-content:center;z-index:50;padding:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  width:min(560px,94vw);max-height:90vh;overflow:auto;padding:22px}
+.card h2{margin-bottom:12px}
+.card p{font-size:14px;line-height:2;color:#d5dcea;margin-bottom:8px}
+.card .tips{background:#12151c;border-left:4px solid var(--gold);padding:10px 12px;
+  font-size:13px;line-height:2;margin:12px 0;color:#e8dcb0}
+.hot{color:var(--gold);font-weight:bold}
+</style>
+</head>
+<body>
+<a class="back" href="../arcade.html">← 返回游戏厅</a>
+<div class="wrap">
+  <h1>回 头 是 岸</h1>
+  <div class="sub">反赌博模拟 · 一个普通中产家庭的 24 个月 · 剧情根据真实案例改编</div>
+  <div class="stats">
+    <div class="stat"><small>📅 月份</small><b id="sMonth">第 1 月</b></div>
+    <div class="stat"><small>💰 现金/存款</small><b id="sCash">80,000</b></div>
+    <div class="stat"><small>💳 负债</small><b id="sDebt" class="bad">0</b></div>
+    <div class="stat"><small>📊 征信分</small><b id="sCredit" class="good">700</b></div>
+  </div>
+  <div id="log"></div>
+  <div id="choices"></div>
+</div>
+
+<div class="overlay" id="endOverlay"><div class="card" id="endCard"></div></div>
+
+<script>
+/* ============================================================
+ * 反赌博教育模拟。核心机制刻意还原网赌骗局：
+ *  · 前期"放水"：小额必赢、提现秒到 —— 让你上钩
+ *  · 加大投入后：后台改概率、提现"风控冻结" —— 收网
+ *  · 所谓客服引导你"再充值解冻" —— 二次收割
+ * ============================================================ */
+const S={
+  month:1, cash:80000, debt:0, credit:700,
+  phase:'intro',            // intro→hook→trap→spiral
+  totalBet:0, totalLost:0, withdrawn:0,
+  monthlyCost:6500,         // 房贷+生活费
+  income:12000,             // 月薪
+  loanAPR:0.36,             // 网贷综合年化(演示用)
+  quitOffered:false, gameOver:false,
+  frozenPool:0,             // 被"冻结"在平台里的余额
+};
+const $=id=>document.getElementById(id);
+function fmt(n){return Math.round(n).toLocaleString('zh-CN');}
+function log(t,cls){const p=document.createElement('p');p.className=cls||'sys';
+  p.innerHTML=t;$('log').appendChild(p);$('log').scrollTop=1e9;}
+function stats(){
+  $('sMonth').textContent='第 '+S.month+' 月';
+  $('sCash').textContent=fmt(S.cash);
+  $('sCash').className=S.cash<5000?'bad':'';
+  $('sDebt').textContent=fmt(S.debt);
+  $('sCredit').textContent=S.credit;
+  $('sCredit').className=S.credit>=650?'good':S.credit>=550?'warn':'bad';
+}
+function choices(list){
+  const box=$('choices');box.innerHTML='';
+  for(const[label,fn,cls]of list){
+    const b=document.createElement('button');
+    b.innerHTML=label;if(cls)b.className=cls;
+    b.onclick=()=>{box.innerHTML='';fn();};
+    box.appendChild(b);
+  }
+}
+/* ———— 月度结算 ———— */
+function nextMonth(){
+  S.month++;
+  S.cash+=S.income;
+  S.cash-=S.monthlyCost;
+  log('———— 第 '+S.month+' 月 ————　发工资 +'+fmt(S.income)+'，房贷与生活支出 -'+fmt(S.monthlyCost),'sys');
+  if(S.debt>0){
+    const interest=Math.round(S.debt*S.loanAPR/12);
+    S.debt+=interest;
+    log('本月贷款利息滚入本金：<span class="lose">+'+fmt(interest)+'</span>（年化约 36%）','sys');
+    const min=Math.round(S.debt*0.08);
+    if(S.cash>=min){S.cash-=min;S.debt-=min;log('自动偿还最低还款 -'+fmt(min),'sys');}
+    else{S.credit-=40;log('<span class="lose">⚠ 本月逾期！征信 -40，催收电话开始打给你的家人…</span>','lose');}
+  }
+  if(S.cash<0){S.debt+=-S.cash;S.cash=0;log('现金不足，缺口自动转为负债','lose');S.credit-=15;}
+  stats();
+  checkEnd();
+}
+function checkEnd(){
+  if(S.gameOver)return true;
+  if(S.credit<=350||S.debt>=400000){ending('broke');return true;}
+  if(S.month>24){ending(S.debt===0&&S.totalBet>0?'survive':'drift');return true;}
+  return false;
+}
+/* ———— 赌局逻辑（还原骗局） ———— */
+function gamble(amount,cb){
+  if(amount>S.cash){log('现金不够下注。','sys');cb();return;}
+  S.cash-=amount;S.totalBet+=amount;
+  let win;
+  if(S.phase==='hook')win=Math.random()<0.78;         // 放水期：几乎必赢
+  else if(S.phase==='trap')win=Math.random()<0.32;    // 收网期
+  else win=Math.random()<0.12;                        // 深渊期：后台已把你标成"肥猪"
+  setTimeout(()=>{
+    if(win){
+      const gain=Math.round(amount*(1.8+Math.random()*0.6));
+      S.frozenPool+=gain;
+      log('🎰 开牌…… <span class="win">你赢了！平台余额 +'+fmt(gain)+'</span>（平台内余额：'+fmt(S.frozenPool)+'）','win');
+    }else{
+      S.totalLost+=amount;
+      log('🎰 开牌…… <span class="lose">差一点点，输了 '+fmt(amount)+'。</span>"再来一把就回本了"——你脑子里有个声音说。','lose');
+    }
+    stats();cb();
+  },420);
+}
+function tryWithdraw(cb){
+  if(S.frozenPool<=0){log('平台余额为 0，没什么可提现的。','sys');cb();return;}
+  if(S.phase==='hook'){
+    S.cash+=S.frozenPool;S.withdrawn+=S.frozenPool;
+    log('💸 提现申请…… <span class="win">秒到账 +'+fmt(S.frozenPool)+'！</span>你心想：这也太容易了。','win');
+    S.frozenPool=0;
+  }else{
+    log('💸 提现申请…… <span class="lose">「您的账户触发风控，提现通道冻结」</span>','lose');
+    log('"客服"发来消息：<span class="friend">「先生您好，需要再充值等额流水才能解冻余额哦，这是平台规定～」</span>','friend');
+    log('<span class="warn">（真相：你的"余额"只是后台数据库里的一个数字，从来就不属于你）</span>','warn');
+  }
+  stats();cb();
+}
+/* ———— 结局 ———— */
+function ending(type){
+  S.gameOver=true;
+  const el=$('endCard');
+  const summary='<p>📊 复盘：累计投入赌资 <b>'+fmt(S.totalBet)+'</b> 元，实际拿回 <b>'+fmt(S.withdrawn)+
+    '</b> 元，净损失 <b class="hot">'+fmt(S.totalBet-S.withdrawn)+'</b> 元；剩余负债 <b>'+fmt(S.debt)+'</b> 元，征信分 <b>'+S.credit+'</b>。</p>';
+  const tips='<div class="tips">🛡 <b>请记住：</b><br>'+
+    '① <b>十赌九骗</b>：网络赌博平台开设在境外，赔率、"运气"全由后台一行代码控制，前期让你赢是"养猪"，加大投入后"杀猪"。<br>'+
+    '② 所谓"提现冻结、充值解冻"是二次收割话术，<b>一分钱都不要再转</b>。<br>'+
+    '③ 参与网络赌博本身违法，<b>赌资不受法律保护</b>；及时止损、保留证据、立刻报警。<br>'+
+    '④ 求助渠道：<span class="hot">110</span> 报警 · <span class="hot">96110</span> 反诈专线 · 下载「国家反诈中心」APP。<br>'+
+    '⑤ 债务压力大时，与家人坦白 + 与银行协商分期，远比"翻本"现实一万倍。</div>';
+  let h='';
+  if(type==='quit'){
+    h='<h2 style="color:var(--green)">🌅 结局：回头是岸</h2>'+
+      '<p>你删掉了 APP，拉黑了"阿凯"，把这段经历一五一十告诉了妻子。那天晚上你们聊到凌晨三点。</p>'+
+      '<p>接下来的日子不轻松——但每个月的债都在变少，你重新睡得着觉了。</p>'+summary+
+      '<p>两年后回看，你会庆幸今天这个决定。<b>赌徒从没有"最后一把"，收手的这一把才是。</b></p>'+tips;
+  }else if(type==='broke'){
+    h='<h2 style="color:var(--red)">💀 结局：坠入深渊</h2>'+
+      '<p>征信黑了，催收电话打爆了你父母和同事的手机。妻子带着孩子回了娘家。你坐在空荡荡的客厅里，手机上那个平台已经打不开了——它换了个名字，正在"放水"给下一个你。</p>'+summary+
+      '<p>这不是虚构：每一个数字背后，都有成千上万个真实的家庭。</p>'+tips+
+      '<p style="color:var(--sub)">如果你或你身边的人正深陷其中：停止转账 → 保留记录 → 拨打 110 / 96110。任何时候回头，都不晚。</p>';
+  }else if(type==='survive'){
+    h='<h2 style="color:var(--gold)">🌤 结局：惊险上岸</h2>'+
+      '<p>24 个月过去，你还清了债。存款远不如两年前，但至少家还在。</p>'+summary+
+      '<p>你把这段经历写成帖子发在网上，标题叫《我差点毁掉我的家》。评论区有人问"到底能不能赢"，你回复：<b>"能，庄家永远赢。"</b></p>'+tips;
+  }else{
+    h='<h2>🌫 结局：平淡是真</h2><p>你始终没有碰那个 APP。24 个月里存款稳步增长，生活平静。</p>'+
+      '<p>后来听说阿凯"发财"的车是租的，人现在已经联系不上了。</p>'+tips;
+  }
+  h+='<div style="display:flex;gap:10px;margin-top:14px"><button class="primary" onclick="location.reload()">🔁 再玩一次</button>'+
+     '<button onclick="location.href=\'../arcade.html\'">返回游戏厅</button></div>';
+  el.innerHTML=h;$('endOverlay').style.display='flex';
+}
+/* ———— 主线剧情 ———— */
+function mainMenu(){
+  if(checkEnd())return;
+  const list=[];
+  if(S.phase!=='intro'){
+    list.push(['🎰 打开那个 APP（下注）',betMenu]);
+    if(S.frozenPool>0)list.push(['💸 申请提现（平台余额 '+fmt(S.frozenPool)+'）',()=>tryWithdraw(mainMenu)]);
+    if(S.phase!=='hook'){
+      list.push(['💳 网上申请贷款（秒批到账）',loanMenu,'danger']);
+    }
+    list.push(['🛑 收手：卸载 APP，向家人坦白',()=>{
+      log('你盯着手机看了很久，长按图标，点了「删除」。','me');
+      if(S.debt>0)log('债还在，但你决定用<b>真实的收入</b>一点点还，而不是用"下一把"。','me');
+      ending(S.totalBet>0?'quit':'drift');
+    },'primary']);
+  }else{
+    list.push(['▶ 开始这个月',intro1]);
+  }
+  list.push(['⏭ 什么都不做，过完这个月',()=>{log('这个月你专心上班，没碰手机里那个东西。','me');nextMonth();if(!S.gameOver)mainMenu();}]);
+  choices(list);
+}
+function betMenu(){
+  const opts=[500,2000,10000,50000].filter(v=>v<=Math.max(S.cash,500));
+  const list=opts.map(v=>['下注 '+fmt(v)+' 元',()=>{
+    if(S.phase==='hook'&&S.totalBet+v>15000){
+      S.phase='trap';
+      log('<span class="warn">（你没有注意到：从这一刻起，平台后台把你的账号从"新人放水池"移进了"收割池"）</span>','warn');
+    }
+    if(S.phase==='trap'&&S.totalLost>60000)S.phase='spiral';
+    gamble(v,mainMenu);
+  }]);
+  list.push(['算了，先不赌',mainMenu]);
+  choices(list);
+}
+function loanMenu(){
+  choices([
+    ['借 20,000（"XX 分期"，日息万五）',()=>doLoan(20000)],
+    ['借 50,000（"急速贷"，砍头息 10%）',()=>doLoan(50000,0.1)],
+    ['借 100,000（"以贷养贷"，多头借贷）',()=>doLoan(100000,0,true)],
+    ['不借了',mainMenu],
+  ]);
+}
+function doLoan(v,cut,multi){
+  const got=Math.round(v*(1-(cut||0)));
+  S.cash+=got;S.debt+=v;S.credit-=multi?35:12;
+  log('💳 贷款 '+fmt(v)+' 元'+(cut?'（到手仅 '+fmt(got)+'，"服务费"先扣了）':'')+'，征信查询记录 +1'+(multi?'，多头借贷已被大数据标记':''),'lose');
+  log('<span class="warn">日息"万五"听着不多？换算成年化是 <b>18%+</b>；很多网贷综合成本超过 36%。</span>','warn');
+  stats();mainMenu();
+}
+/* ———— 开场 ———— */
+function intro1(){
+  log('你叫<b>陈立</b>，34 岁，一家小公司的部门主管。月薪 12,000，房贷未清，妻子和 5 岁的女儿是你最大的软肋、也是最大的铠甲。','me');
+  log('周五晚上，多年没联系的老同学<b>阿凯</b>约你吃饭。他开着一辆你叫不出名字的跑车。','sys');
+  log('阿凯：「就在手机上玩玩，我这半年赚的比上班十年都多。你先小玩试试，<b>我带你</b>。」','friend');
+  choices([
+    ['「……那我下个 500 试试水」',()=>{
+      S.phase='hook';
+      log('你扫了他给的二维码，下载了一个图标花哨的 APP。','me');
+      log('<span class="warn">（这个 APP 不在任何正规应用商店——这本该是第一个警报）</span>','warn');
+      gamble(500,()=>{log('阿凯拍拍你：「看吧！提现试试，秒到。」','friend');mainMenu();});
+    }],
+    ['「算了，这东西我不碰」',()=>{
+      log('你笑着摆摆手。阿凯耸耸肩没再劝。','me');
+      log('后来你才知道，他劝人下载是<b>有拉新提成的</b>。','warn');
+      S.phase='clean';nextMonth();mainMenu();
+    },'primary'],
+  ]);
+}
+log('🎲 <b>《回头是岸》</b>——这是一个模拟器。你将扮演一位普通的中产父亲，亲历一场典型网络赌博骗局的完整周期。','sys');
+log('你的每一个选择都会影响结局。<span class="warn">现实中，没有存档，也没有重来。</span>','warn');
+stats();choices([['▶ 开始',intro1]]);
+</script>
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>四子连珠</title>
+<style>
+body{margin:0;background:#1a1c22;color:#e8ecf4;font-family:"Microsoft YaHei",system-ui,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px;user-select:none}
+a.back{align-self:flex-start;color:#98a3b8;text-decoration:none;font-size:13px}
+h1{font-size:20px;letter-spacing:3px;margin:6px 0}
+.bar{display:flex;gap:12px;align-items:center;margin-bottom:10px;flex-wrap:wrap;justify-content:center;font-size:14px}
+.bar b{color:#ffd24d}
+select,button{font-family:inherit;font-size:13px;padding:7px 12px;border:none;border-radius:6px;cursor:pointer}
+select{background:#2a3140;color:#fff}
+button{background:#2f6b3a;color:#fff}
+#board{background:linear-gradient(180deg,#8a5f3a,#6b4a2b);border:4px solid #4a2f18;
+  border-radius:10px;padding:10px;display:grid;grid-template-columns:repeat(7,52px);gap:6px;box-shadow:inset 0 0 0 3px #a37a4a}
+.slot{width:52px;height:52px;background:#242830;border-radius:50%;position:relative;
+  box-shadow:inset 2px 2px 0 rgba(0,0,0,.5);cursor:pointer;overflow:hidden}
+.slot.hoverable:hover{background:#2f3540}
+.chip{position:absolute;inset:4px;border-radius:50%;transition:top .35s cubic-bezier(.5,1.6,.5,1);top:-500px}
+.chip.p{background:radial-gradient(circle at 30% 30%,#8fe0ff,#3ecfe0);box-shadow:inset -3px -4px 0 rgba(0,0,0,.3)}
+.chip.a{background:radial-gradient(circle at 30% 30%,#7ce6a0,#2eb060);box-shadow:inset -3px -4px 0 rgba(0,0,0,.3)}
+.chip.win{outline:3px solid #ffd24d;outline-offset:-1px}
+.tip{color:#98a3b8;font-size:12px;margin-top:10px;text-align:center;line-height:1.8}
+#status{margin-bottom:8px;font-size:14px;text-align:center}
+#status.you{color:#8fe0ff}#status.ai{color:#7ce6a0}#status.win{color:#ffd24d}
+</style>
+</head>
+<body>
+<a class="back" href="../arcade.html">← 返回游戏厅</a>
+<h1>💎 四子连珠</h1>
+<div class="bar">
+  难度 <select id="lv">
+    <option value="2">简单</option>
+    <option value="4" selected>中等</option>
+    <option value="6">困难</option>
+  </select>
+  <button onclick="init()">🔁 新对局</button>
+  <span>比分 你 <b id="pw">0</b> - <b id="aw">0</b> 电脑</span>
+</div>
+<div id="status" class="you">🔵 你的回合，点击列落子</div>
+<div id="board"></div>
+<div class="tip">横 · 竖 · 斜任意方向连成 4 颗即获胜　·　钻石 = 你　·　绿宝石 = 电脑</div>
+<script>
+const R=6,C=7;
+let g,turn,over,pw=0,aw=0,depth,lockedByAI;
+const $=id=>document.getElementById(id);
+function init(){
+  g=Array.from({length:R},()=>Array(C).fill(0));    // 0空 1你 2AI
+  turn=1;over=false;lockedByAI=false;
+  depth=+$('lv').value;
+  $('pw').textContent=pw;$('aw').textContent=aw;
+  status('you','🔵 你的回合，点击列落子');
+  const b=$('board');b.innerHTML='';
+  for(let r=0;r<R;r++)for(let c=0;c<C;c++){
+    const s=document.createElement('div');s.className='slot hoverable';s.dataset.c=c;s.dataset.r=r;
+    s.innerHTML='<div class="chip"></div>';
+    s.onclick=()=>drop(c);
+    b.appendChild(s);
+  }
+}
+function status(cls,txt){$('status').className=cls;$('status').innerHTML=txt;}
+function cell(r,c){return $('board').children[r*C+c];}
+function drop(c){
+  if(over||lockedByAI||turn!==1)return;
+  const r=lowest(g,c);if(r<0)return;
+  place(r,c,1);
+  const win=findWin(g,1);
+  if(win){over=true;pw++;$('pw').textContent=pw;
+    highlight(win);status('win','🏆 你赢了！');return;}
+  if(full(g)){over=true;status('you','🤝 平局');return;}
+  turn=2;status('ai','🟢 电脑思考中……');lockedByAI=true;
+  setTimeout(aiMove,300);
+}
+function place(r,c,who){
+  g[r][c]=who;
+  const ch=cell(r,c).firstChild;
+  ch.className='chip '+(who===1?'p':'a');
+  ch.style.top='-500px';
+  requestAnimationFrame(()=>{ch.style.top='4px';});
+}
+function lowest(gr,c){for(let r=R-1;r>=0;r--)if(!gr[r][c])return r;return -1;}
+function full(gr){for(let c=0;c<C;c++)if(!gr[0][c])return false;return true;}
+function findWin(gr,who){
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for(let r=0;r<R;r++)for(let c=0;c<C;c++){
+    if(gr[r][c]!==who)continue;
+    for(const[dr,dc]of dirs){
+      const line=[[r,c]];
+      for(let k=1;k<4;k++){const nr=r+dr*k,nc=c+dc*k;
+        if(nr<0||nr>=R||nc<0||nc>=C||gr[nr][nc]!==who)break;
+        line.push([nr,nc]);}
+      if(line.length===4)return line;
+    }
+  }return null;
+}
+function highlight(list){for(const[r,c]of list)cell(r,c).firstChild.classList.add('win');}
+/* ———— AI：alpha-beta minimax ———— */
+function score(gr,who){                  // 简单启发式：数窗口
+  const opp=who===1?2:1;
+  let s=0;
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for(let r=0;r<R;r++)for(let c=0;c<C;c++){
+    for(const[dr,dc]of dirs){
+      const w=[];
+      for(let k=0;k<4;k++){const nr=r+dr*k,nc=c+dc*k;
+        if(nr<0||nr>=R||nc<0||nc>=C){w.length=0;break;}
+        w.push(gr[nr][nc]);}
+      if(!w.length)continue;
+      const me=w.filter(v=>v===who).length,you=w.filter(v=>v===opp).length;
+      if(me&&you)continue;
+      if(me===4)s+=100000;
+      else if(me===3)s+=100;
+      else if(me===2)s+=10;
+      if(you===4)s-=200000;
+      else if(you===3)s-=120;
+      else if(you===2)s-=12;
+    }
+  }
+  // 中列偏好
+  for(let r=0;r<R;r++)if(gr[r][3]===who)s+=3;
+  return s;
+}
+function ab(gr,dep,a,b,max,who){
+  const win2=findWin(gr,2),win1=findWin(gr,1);
+  if(win2)return 1e6-dep;if(win1)return -1e6+dep;
+  if(dep===0||full(gr))return score(gr,2);
+  const cols=[3,4,2,5,1,6,0];
+  if(max){let best=-1e9;
+    for(const c of cols){const r=lowest(gr,c);if(r<0)continue;
+      gr[r][c]=who;const v=ab(gr,dep-1,a,b,false,3-who);gr[r][c]=0;
+      best=Math.max(best,v);a=Math.max(a,best);if(a>=b)break;}
+    return best;}
+  else{let best=1e9;
+    for(const c of cols){const r=lowest(gr,c);if(r<0)continue;
+      gr[r][c]=who;const v=ab(gr,dep-1,a,b,true,3-who);gr[r][c]=0;
+      best=Math.min(best,v);b=Math.min(b,best);if(a>=b)break;}
+    return best;}
+}
+function aiMove(){
+  const cols=[3,4,2,5,1,6,0];
+  let bestC=-1,bestV=-1e9;
+  for(const c of cols){
+    const r=lowest(g,c);if(r<0)continue;
+    g[r][c]=2;
+    const v=ab(g,depth-1,-1e9,1e9,false,1);
+    g[r][c]=0;
+    if(v>bestV){bestV=v;bestC=c;}
+  }
+  if(bestC<0){over=true;status('you','🤝 平局');lockedByAI=false;return;}
+  const r=lowest(g,bestC);
+  place(r,bestC,2);
+  const win=findWin(g,2);
+  if(win){over=true;aw++;$('aw').textContent=aw;
+    highlight(win);status('win','😔 电脑赢了');lockedByAI=false;return;}
+  if(full(g)){over=true;status('you','🤝 平局');lockedByAI=false;return;}
+  turn=1;lockedByAI=false;status('you','🔵 你的回合');
+}
+$('lv').onchange=()=>{depth=+$('lv').value;};
+init();
+</script>
+</body>
+</html>
