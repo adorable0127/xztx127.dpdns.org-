@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆音序 · 小游戏厅</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:#14161a;color:#e8e6e0;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;gap:16px}
+  #backBtn{position:fixed;top:16px;left:16px;padding:8px 16px;border:none;border-radius:8px;background:#3fc1e8;color:#06222b;font-weight:700;font-size:13px;cursor:pointer;z-index:10}
+  #backBtn:hover{opacity:.85}
+  h1{font-size:22px;color:#3fc1e8}
+  .hud{display:flex;gap:24px;font-size:15px}.hud b{color:#3fc1e8}
+  .wrap{position:relative;background:#1d2026;border-radius:50%;padding:22px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  .pads{display:grid;grid-template-columns:repeat(2,130px);grid-template-rows:repeat(2,130px);gap:12px;border-radius:50%;overflow:hidden}
+  .pad{cursor:pointer;opacity:.55;transition:opacity .12s,filter .12s;border:none}
+  .pad:hover{opacity:.72}
+  .pad.lit{opacity:1;filter:brightness(1.5) saturate(1.3)}
+  .pad.g{background:#5ed47a;border-radius:100% 8px 8px 8px}
+  .pad.r{background:#e85a5a;border-radius:8px 100% 8px 8px}
+  .pad.y{background:#ffd83d;border-radius:8px 8px 8px 100%}
+  .pad.b{background:#5a8ae8;border-radius:8px 8px 100% 8px}
+  .center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:108px;height:108px;border-radius:50%;background:#15151b;border:4px solid #2a2a32;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;z-index:3}
+  .center .lvl{font-size:30px;font-weight:800;color:#3fc1e8}
+  .center .cap{font-size:10px;color:#8a8d94;letter-spacing:1px}
+  .overlay{position:absolute;inset:0;background:rgba(12,13,16,.94);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:30px;z-index:5}
+  .overlay.hide{display:none}.overlay h2{font-size:20px}.overlay p{font-size:12px;color:#8a8d94;max-width:220px;line-height:1.7}
+  .btn{padding:10px 20px;border:none;border-radius:8px;background:#3fc1e8;color:#06222b;font-weight:700;font-size:14px;cursor:pointer}.btn:hover{opacity:.85}
+  .status{font-size:13px;color:#8a8d94;height:18px}
+  .hint{font-size:12px;color:#8a8d94}
+</style>
+</head>
+<body>
+<button id="backBtn" onclick="location.href='../arcade.html'">← 返回游戏厅</button>
+<h1>🎵 记忆音序</h1>
+<div class="hud"><span>关卡 <b id="level">0</b></span><span>最高 <b id="best">0</b></span></div>
+<div class="wrap">
+  <div class="pads" id="pads">
+    <button class="pad g" data-k="0"></button>
+    <button class="pad r" data-k="1"></button>
+    <button class="pad b" data-k="2"></button>
+    <button class="pad y" data-k="3"></button>
+  </div>
+  <div class="center"><div class="lvl" id="lvl">0</div><div class="cap">LEVEL</div></div>
+  <div class="overlay" id="overlay">
+    <h2 id="ovTitle">记忆音序</h2>
+    <p id="ovText">看亮灯顺序并复刻它。每过一关序列加长一个，能记到多长？</p>
+    <button class="btn" id="startBtn">开始游戏</button>
+  </div>
+</div>
+<div class="status" id="status"></div>
+<div class="hint">观察 → 按相同顺序点击</div>
+<script>
+(function(){
+  const pads=[...document.querySelectorAll('.pad')];
+  const overlay=document.getElementById('overlay'),ovTitle=document.getElementById('ovTitle'),ovText=document.getElementById('ovText'),startBtn=document.getElementById('startBtn');
+  const levelEl=document.getElementById('level'),bestEl=document.getElementById('best'),lvlEl=document.getElementById('lvl'),statusEl=document.getElementById('status');
+  const FREQ=[329.6,261.6,392.0,440.0];
+  let seq,step,playing,best=0,actx=null;
+  function tone(i,dur){
+    try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+      const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=FREQ[i];
+      o.connect(g);g.connect(actx.destination);g.gain.setValueAtTime(0.0001,actx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.22,actx.currentTime+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur/1000);
+      o.start();o.stop(actx.currentTime+dur/1000+0.02);
+    }catch(e){}
+  }
+  function light(i,dur){pads[i].classList.add('lit');tone(i,dur);setTimeout(()=>pads[i].classList.remove('lit'),dur-60);}
+  function flashSeq(){
+    playing=true;statusEl.textContent='看好顺序…';let i=0;
+    const iv=setInterval(()=>{
+      if(i>=seq.length){clearInterval(iv);playing=false;step=0;statusEl.textContent='轮到你了！';return;}
+      light(seq[i],460);i++;
+    },620);
+  }
+  function nextRound(){seq.push(Math.random()*4|0);levelEl.textContent=seq.length;lvlEl.textContent=seq.length;setTimeout(flashSeq,520);}
+  function start(){seq=[];step=0;levelEl.textContent=0;lvlEl.textContent=0;overlay.classList.add('hide');nextRound();}
+  function press(i){
+    if(playing||!seq||seq.length===0)return;
+    light(i,260);
+    if(seq[step]===i){
+      step++;
+      if(step===seq.length){statusEl.textContent='✔ 正确！';setTimeout(nextRound,640);}
+    }else{
+      best=Math.max(best,seq.length-1);bestEl.textContent=best;
+      statusEl.textContent='';ovTitle.textContent='序列错误！';ovText.textContent='你记到了第 '+(seq.length-1)+' 关，再来一次？';startBtn.textContent='重新开始';overlay.classList.remove('hide');seq=[];
+    }
+  }
+  pads.forEach((p,i)=>{p.addEventListener('click',()=>press(i));});
+  startBtn.onclick=start;
+})();
+</script>
+</body>
+</html>

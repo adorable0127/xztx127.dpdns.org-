@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>扫雷 · 小游戏厅</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#14161a;color:#e8e6e0;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;gap:14px}
+  #backBtn{position:fixed;top:16px;left:16px;padding:8px 16px;border:none;border-radius:8px;background:#d83c3c;color:#fff;font-weight:700;font-size:13px;cursor:pointer;z-index:10}
+  #backBtn:hover{opacity:.85}
+  h1{font-size:22px;color:#d83c3c}
+  .hud{display:flex;gap:20px;align-items:center;font-size:15px}.hud b{color:#d83c3c}
+  .hud select{background:#1d2026;color:#e8e6e0;border:1px solid #3a3e46;border-radius:6px;padding:6px 10px;font-size:13px}
+  .board{display:grid;gap:2px;background:#1d2026;padding:10px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.4);user-select:none}
+  .c{width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;background:#3a3e46;border-radius:3px;cursor:pointer;border:1px solid #4a4e57}
+  .c:hover{background:#454a54}
+  .c.open{background:#22252b;border-color:#22252b;cursor:default}
+  .c.mine{background:#d83c3c}
+  .c.flag{background:#2a2e36}
+  .n1{color:#4a7fe0}.n2{color:#5ed47a}.n3{color:#e8543f}.n4{color:#a85bd6}.n5{color:#f2a93b}.n6{color:#3fc1e8}.n7{color:#e8e6e0}.n8{color:#8a8d94}
+  .btn{padding:9px 18px;border:none;border-radius:8px;background:#d83c3c;color:#fff;font-weight:700;font-size:14px;cursor:pointer}.btn:hover{opacity:.85}
+  .hint{font-size:12px;color:#8a8d94;text-align:center;max-width:360px;line-height:1.6}
+</style>
+</head>
+<body>
+<button id="backBtn" onclick="location.href='../arcade.html'">← 返回游戏厅</button>
+<h1>💣 扫雷</h1>
+<div class="hud">
+  <span>💣 <b id="minesLeft">0</b></span>
+  <span>⏱ <b id="time">0</b></span>
+  <select id="diff"><option value="easy">简单 9×9</option><option value="med">中等 12×12</option><option value="hard">困难 16×16</option></select>
+  <button class="btn" id="restart">重开</button>
+</div>
+<div class="board" id="board"></div>
+<div class="hint">左键翻开 · 右键插旗 · 翻开所有非雷格即获胜</div>
+<script>
+(function(){
+  const board=document.getElementById('board'),minesLeftEl=document.getElementById('minesLeft'),timeEl=document.getElementById('time');
+  const diffSel=document.getElementById('diff'),restart=document.getElementById('restart');
+  const DIFFS={easy:[9,10],med:[12,22],hard:[16,40]};
+  let N,M,grid,revealed,flagged,started,over,timer,time,cells,toReveal;
+  function init(){const[n,m]=DIFFS[diffSel.value];N=n;M=m;grid=[];revealed=[];flagged=[];started=false;over=false;time=0;timeEl.textContent=0;clearInterval(timer);toReveal=N*N-M;minesLeftEl.textContent=M;
+    grid=Array.from({length:N},()=>Array(N).fill(0));revealed=Array.from({length:N},()=>Array(N).fill(false));flagged=Array.from({length:N},()=>Array(N).fill(false));
+    board.style.gridTemplateColumns=`repeat(${N},30px)`;board.innerHTML='';cells=[];
+    for(let r=0;r<N;r++){cells[r]=[];for(let c=0;c<N;c++){const d=document.createElement('div');d.className='c';d.dataset.r=r;d.dataset.c=c;board.appendChild(d);cells[r][c]=d;}}
+  }
+  function plant(sr,sc){let placed=0;while(placed<M){const r=Math.random()*N|0,c=Math.random()*N|0;if(grid[r][c]===-1||(Math.abs(r-sr)<=1&&Math.abs(c-sc)<=1))continue;grid[r][c]=-1;placed++;}
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++){if(grid[r][c]===-1)continue;let n=0;forN(r,c,(rr,cc)=>{if(grid[rr][cc]===-1)n++;});grid[r][c]=n;}}
+  function forN(r,c,fn){for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){if(!dr&&!dc)continue;const rr=r+dr,cc=c+dc;if(rr>=0&&rr<N&&cc>=0&&cc<N)fn(rr,cc);}}
+  function reveal(r,c){if(revealed[r][c]||flagged[r][c]||over)return;revealed[r][c]=true;toReveal--;const el=cells[r][c];el.classList.add('open');
+    if(grid[r][c]===-1){el.classList.add('mine');el.textContent='💥';return lose();}
+    if(grid[r][c]>0){el.textContent=grid[r][c];el.classList.add('n'+grid[r][c]);}
+    else{forN(r,c,(rr,cc)=>reveal(rr,cc));}
+    if(toReveal===0)win();}
+  function click(r,c){if(over)return;if(!started){started=true;plant(r,c);timer=setInterval(()=>{time++;timeEl.textContent=time;},1000);}reveal(r,c);}
+  function flag(r,c){if(over||revealed[r][c])return;flagged[r][c]=!flagged[r][c];const el=cells[r][c];el.classList.toggle('flag',flagged[r][c]);el.textContent=flagged[r][c]?'🚩':'';let f=0;for(let i=0;i<N;i++)for(let j=0;j<N;j++)if(flagged[i][j])f++;minesLeftEl.textContent=M-f;}
+  function lose(){over=true;clearInterval(timer);for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(grid[r][c]===-1&&!revealed[r][c]){cells[r][c].classList.add('open','mine');cells[r][c].textContent='💣';}}
+  function win(){over=true;clearInterval(timer);minesLeftEl.textContent=0;setTimeout(()=>alert('🎉 扫雷成功！用时 '+time+' 秒'),50);}
+  board.addEventListener('click',e=>{const el=e.target.closest('.c');if(!el)return;click(+el.dataset.r,+el.dataset.c);});
+  board.addEventListener('contextmenu',e=>{e.preventDefault();const el=e.target.closest('.c');if(!el)return;flag(+el.dataset.r,+el.dataset.c);});
+  diffSel.onchange=init;restart.onclick=init;init();
+})();
+</script>
+</body>
+</html>

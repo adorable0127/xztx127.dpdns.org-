@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文件服务器 · Minecraft</title>
+<link rel="stylesheet" href="css/mc-ui.css">
+<link rel="stylesheet" href="css/server.css">
+</head>
+<body class="server">
+
+  <button class="mc-btn sm mc-back" onclick="location.href='index.html'">← 返回主菜单</button>
+  <div id="mc-notifs"></div>
+
+  <div class="srv-wrap">
+    <header class="srv-header">
+      <div class="mc-title">⛏ 文件服务器</div>
+      <div class="mc-subtitle tag">本地缓存存储 · 离线可用 · 重要文件置顶</div>
+    </header>
+
+    <!-- 不支持时的提示 -->
+    <div class="unsupported" id="unsupported">
+      ⚠ 当前环境无法使用本地缓存存储（IndexedDB 不可用）。<br>
+      请用现代浏览器打开，或将本站部署到内网服务器后访问。
+    </div>
+
+    <!-- 存储占用 -->
+    <div class="usage" id="usage" style="display:none">
+      <div class="row"><span>本地占用</span><span id="usageText">—</span></div>
+      <div class="bar"><div class="fill" id="usageFill"></div></div>
+    </div>
+
+    <!-- 上传 -->
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="filein" multiple>
+      <span class="ico">📦</span>
+      <p>把文件拖到这里<br><b>或点击选择文件</b></p>
+    </div>
+
+    <div class="prog" id="prog">
+      <div class="lbl"><span id="progName">存储中…</span><span id="progPct">0%</span></div>
+      <div class="outer"><div class="inner" id="progBar"></div></div>
+    </div>
+
+    <!-- 工具条 -->
+    <div class="srv-tools">
+      <span class="count" id="count">物品栏：0 个文件</span>
+      <button class="mc-btn sm red" onclick="MCServer.clearAll()">🗑 清空全部</button>
+    </div>
+
+    <!-- 文件列表 -->
+    <ul class="flist" id="flist"></ul>
+    <div class="empty" id="empty"><span class="ei">🪣</span>物品栏是空的<br>上传第一个文件吧！</div>
+
+    <div class="srv-footer">
+      MC 文件服务器 · 数据保存在你的浏览器本地（IndexedDB）<br>
+      不上传云端 · 不依赖外部服务 · 关闭网络也能用
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/server.js"></script>
+</body>
+</html>

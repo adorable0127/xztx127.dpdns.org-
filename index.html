@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xztx127的综合发布网站</title>
+    <style>
+        body {
+            background-color: #2b2b2b;
+            background-image: url('1.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            font-family: 'Minecraft', 'Courier New', monospace;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-shadow: 2px 2px 0px #3f3f3f;
+            overflow: hidden;
+        }
+
+        .title {
+            font-size: 48px;
+            margin: 0 0 10px 0;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+        .subtitle {
+            display: block;
+            font-size: 16px;
+            color: #aaaaaa;
+            margin-top: 5px;
+            letter-spacing: 1px;
+        }
+
+        .menu-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 400px;
+            max-width: 90%;
+            margin: 20px 0;
+        }
+
+        .mc-btn {
+            display: block;
+            padding: 10px;
+            background-color: #555555;
+            color: #ffffff;
+            text-decoration: none;
+            font-family: inherit;
+            font-size: 16px;
+            border: 2px solid #000;
+            border-bottom: 4px solid #333;
+            border-right: 4px solid #333;
+            text-shadow: 2px 2px 0px #222;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.1s;
+        }
+        .mc-btn:hover { background-color: #6a6a6a; }
+        .mc-btn:active {
+            border-bottom: 2px solid #333;
+            border-right: 2px solid #333;
+            transform: translate(2px, 2px);
+        }
+        
+        .btn-desc { display: block; font-size: 12px; color: #aaaaaa; margin-top: 4px; }
+        .main-btn { height: 60px; display: flex; flex-direction: column; justify-content: center; }
+
+        .resource-menu { text-align: center; margin: 15px 0 5px 0; }
+        .sub-title { color: #aaaaaa; font-size: 14px; margin-bottom: 10px; }
+        .menu-buttons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        .small-btn { flex: 1; min-width: 100px; font-size: 14px; padding: 8px 5px; }
+
+        .bottom-buttons { display: flex; gap: 10px; margin-top: 10px; }
+        .half-btn { flex: 2; }
+        .quarter-btn { flex: 1; font-size: 14px; }
+
+        .game-footer {
+            position: absolute;
+            bottom: 15px;
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+        }
+        .footer-links a { color: #aaa; text-decoration: none; margin: 0 5px; }
+        .footer-links a:hover { color: #fff; text-decoration: underline; }
+        .version { margin-top: 5px; color: #555; }
+        .hint-text { font-size: 12px; color: #aaa; margin-top: 15px; text-align: center; }
+        .hint-text a { color: #fff; text-decoration: underline; }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background: #2b2b2b;
+            border: 4px solid #000;
+            padding: 20px;
+            width: 350px;
+            text-align: left;
+        }
+        .modal-content label { display: block; margin-bottom: 15px; font-size: 14px; }
+        .modal-content input, .modal-content select {
+            width: 100%; padding: 8px; margin-top: 5px;
+            background: #000; border: 2px solid #555; color: #fff; font-family: inherit;
+        }
+        .modal-buttons { display: flex; gap: 10px; margin-top: 20px; }
+        .modal-buttons .mc-btn { flex: 1; }
+
+        .exit-modal .modal-content {
+            text-align: center;
+        }
+        .exit-modal h2 {
+            color: #ff5555;
+            margin-bottom: 20px;
+        }
+        .exit-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .exit-btn {
+            padding: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            border: 3px solid #000;
+            border-bottom: 5px solid #000;
+            border-right: 5px solid #000;
+            font-family: inherit;
+            text-shadow: 2px 2px 0px #000;
+            transition: all 0.1s;
+        }
+        .exit-btn:hover { transform: translate(2px, 2px); }
+        .exit-btn:active { 
+            border-bottom: 3px solid #000; 
+            border-right: 3px solid #000; 
+            transform: translate(2px, 2px);
+        }
+        .exit-btn.black {
+            background-color: #2b2b2b;
+            color: #ffffff;
+        }
+        .exit-btn.green {
+            background-color: #55aa55;
+            color: #ffffff;
+        }
+        .exit-btn.red {
+            background-color: #aa3333;
+            color: #ffffff;
+        }
+        .cancel-btn {
+            background-color: #555555;
+            color: #ffffff;
+            margin-top: 10px;
+        }
+
+        .bookmark-modal .modal-content {
+            text-align: center;
+            max-width: 450px;
+        }
+        .bookmark-modal h2 {
+            color: #ffd700;
+            margin-bottom: 15px;
+        }
+        .bookmark-modal p {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+        .bookmark-btn {
+            background-color: #ffd700;
+            color: #000;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 15px 0;
+            border: 3px solid #000;
+            border-bottom: 5px solid #000;
+            border-right: 5px solid #000;
+            cursor: pointer;
+            text-shadow: 1px 1px 0px #fff;
+        }
+        .bookmark-btn:hover {
+            background-color: #ffed4e;
+            transform: translate(2px, 2px);
+        }
+        .dont-show-again {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #888;
+        }
+        .dont-show-again label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .dont-show-again input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .construction-modal .modal-content {
+            text-align: center;
+        }
+        .construction-modal h2 {
+            color: #ffaa00;
+            margin-bottom: 15px;
+        }
+        .construction-modal p {
+            margin: 15px 0;
+            font-size: 16px;
+        }
+        .construction-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .construction-buttons .mc-btn {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <h1 class="title">MINECRAFT<span class="subtitle">综合发布网站 · Comprehensive publishing website</span></h1>
+
+    <div class="menu-container">
+        <button class="mc-btn main-btn" onclick="openModal()">
+            单人世界 · MC 网页模拟版
+            <span class="btn-desc">3D 体素世界：自定义种子 / 生存创造 / 维度 / 生物 / Boss / 指令</span>
+        </button>
+        <a href="server.html" class="mc-btn main-btn">
+            进入文件服务器
+            <span class="btn-desc">本地缓存存储，重要文件离线可用</span>
+        </a>
+        <a href="xztx127gjx.html" class="mc-btn main-btn">
+            n款工具
+            <span class="btn-desc">实用工具集合 · 提高工作效率</span>
+        </a>
+        
+        <div class="resource-menu">
+            <p class="sub-title">xztx127的乱七八糟资源库</p>
+            <div class="menu-buttons">
+                <a href="arcade.html" class="mc-btn small-btn">🎮 12款小游戏</a>
+                <a href="arcade.html#mods" class="mc-btn small-btn">📦 模组库</a>
+                <a href="arcade.html#contact" class="mc-btn small-btn">✉️ 联系作者</a>
+            </div>
+        </div>
+
+        <div class="bottom-buttons">
+            <a href="reverse-captcha.html" class="mc-btn half-btn">
+                我不是人类
+                <span class="btn-desc">仅限非人类访问 →</span>
+            </a>
+            <button class="mc-btn quarter-btn" onclick="goToOptions()">选项…</button>
+            <button class="mc-btn quarter-btn" onclick="showExitModal()">退出游戏</button>
+        </div>
+        
+        <button class="mc-btn" style="margin-top: 10px;" onclick="showConstructionModal()">
+            🚀 前往作者MC服务器
+            <span class="btn-desc">xztx127mc.dpdns.org</span>
+        </button>
+    </div>
+
+    <p class="hint-text">已有存档？ <a href="mc.html">直接进入</a> 后点右上角「导入」载入 .json 世界</p>
+
+    <footer class="game-footer">
+        <p>xztx127 © 2026</p>
+        <div class="footer-links">
+            <a href="https://space.bilibili.com/3546834976902089" target="_blank">Bilibili</a>
+            <span class="separator">·</span>
+            <a href="https://modrinth.com/user/CoreTweaker127" target="_blank">Modrinth</a>
+        </div>
+        <p class="version">🌐 Minecraft 1.20.1</p>
+    </footer>
+
+    <!-- 创建新世界弹窗 -->
+    <div class="modal-overlay" id="createWorldModal">
+        <div class="modal-content">
+            <h2>创建新世界</h2>
+            <label>世界种子 🎲<br><input type="text" placeholder="输入数字或任意文字；相同种子生成相同世界"></label>
+            <label>游戏模式<br>
+                <select>
+                    <option>⚔️生存 (空手开局 · 收集 / 合成 / 战斗 / 饥饿)</option>
+                    <option>🧱创造 (无限方块 · 自由飞行 · 无伤害)</option>
+                </select>
+            </label>
+            <div class="modal-buttons">
+                <button class="mc-btn" onclick="closeModal()">取消</button>
+                <button class="mc-btn" onclick="window.location.href='mc.html'">创建并进入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 退出游戏弹窗 -->
+    <div class="modal-overlay exit-modal" id="exitModal">
+        <div class="modal-content">
+            <h2>这是网页，逃不掉的！</h2>
+            <div class="exit-buttons">
+                <button class="exit-btn black" onclick="exitToBlack()">确定</button>
+                <button class="exit-btn green" onclick="exitToGreen()">确定</button>
+                <button class="exit-btn red" onclick="exitToRed()">确定</button>
+                <button class="exit-btn cancel-btn" onclick="closeExitModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加入收藏夹弹窗 -->
+    <div class="modal-overlay bookmark-modal" id="bookmarkModal">
+        <div class="modal-content">
+            <h2>⭐ 加入收藏夹</h2>
+            <p>喜欢这个网站吗？</p>
+            <p>把它加入收藏夹，方便下次快速访问！</p>
+            <button class="bookmark-btn" onclick="addToBookmarks()">📌 一键加入收藏夹</button>
+            <div class="dont-show-again">
+                <label>
+                    <input type="checkbox" id="dontShowAgain" checked>
+                    一周内不再提示
+                </label>
+            </div>
+            <button class="mc-btn" style="margin-top: 15px;" onclick="closeBookmarkModal()">关闭</button>
+        </div>
+    </div>
+
+    <!-- 施工提示弹窗 -->
+    <div class="modal-overlay construction-modal" id="constructionModal">
+        <div class="modal-content">
+            <h2>🚧 正在施工</h2>
+            <p>预计3个月后完工</p>
+            <p>确定访问官网吗？</p>
+            <div class="construction-buttons">
+                <button class="mc-btn" onclick="confirmVisit()">是</button>
+                <button class="mc-btn" onclick="closeConstructionModal()">否</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openModal() { document.getElementById('createWorldModal').style.display = 'flex'; }
+        function closeModal() { document.getElementById('createWorldModal').style.display = 'none'; }
+
+        function goToOptions() {
+            window.location.href = 'https://www.bilibili.com/video/BV1GJ411x7h7';
+        }
+
+        function showExitModal() {
+            document.getElementById('exitModal').style.display = 'flex';
+        }
+
+        function closeExitModal() {
+            document.getElementById('exitModal').style.display = 'none';
+        }
+
+        function exitToBlack() {
+            window.location.href = 'https://www.bilibili.com/video/BV1GJ411x7h7';
+        }
+
+        function exitToGreen() {
+            window.location.href = 'https://www.bilibili.com/video/BV1Nh7A6hEGg';
+        }
+
+        function exitToRed() {
+            alert('你被骗了！qwq作者xztx127');
+        }
+
+        function checkBookmarkPrompt() {
+            const lastPrompt = localStorage.getItem('bookmarkPromptDate');
+            const hasBookmarked = localStorage.getItem('hasBookmarked');
+            const dontShow = localStorage.getItem('dontShowBookmark');
+            
+            if (hasBookmarked === 'true') {
+                return;
+            }
+            
+            if (dontShow) {
+                const dontShowDate = new Date(dontShow);
+                const now = new Date();
+                const daysDiff = (now - dontShowDate) / (1000 * 60 * 60 * 24);
+                
+                if (daysDiff < 7) {
+                    return;
+                }
+            }
+            
+            setTimeout(() => {
+                document.getElementById('bookmarkModal').style.display = 'flex';
+            }, 1000);
+        }
+
+        function addToBookmarks() {
+            const url = window.location.href;
+            const title = 'xztx127的综合发布网站 - xztx127';
+            
+            if (window.sidebar && window.sidebar.addPanel) {
+                window.sidebar.addPanel(title, url, '');
+            } else if (window.external && ('AddFavorite' in window.external)) {
+                window.external.AddFavorite(url, title);
+            } else if (window.chrome) {
+                alert('请按 Ctrl+D (Windows) 或 Cmd+D (Mac) 添加书签');
+            } else {
+                alert('请按 Ctrl+D (Windows) 或 Cmd+D (Mac) 添加书签');
+            }
+            
+            localStorage.setItem('hasBookmarked', 'true');
+            closeBookmarkModal();
+            
+            setTimeout(() => {
+                alert('✅ 已成功标记！感谢您的支持！');
+            }, 500);
+        }
+
+        function closeBookmarkModal() {
+            const dontShowCheckbox = document.getElementById('dontShowAgain');
+            if (dontShowCheckbox.checked) {
+                localStorage.setItem('dontShowBookmark', new Date().toISOString());
+            }
+            document.getElementById('bookmarkModal').style.display = 'none';
+        }
+
+        function showConstructionModal() {
+            document.getElementById('constructionModal').style.display = 'flex';
+        }
+
+        function closeConstructionModal() {
+            document.getElementById('constructionModal').style.display = 'none';
+        }
+
+        function confirmVisit() {
+            window.location.href = 'http://xztx127mc.dpdns.org';
+        }
+
+        window.addEventListener('DOMContentLoaded', checkBookmarkPrompt);
+
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal-overlay')) {
+                if (event.target.id === 'createWorldModal') {
+                    closeModal();
+                } else if (event.target.id === 'exitModal') {
+                    closeExitModal();
+                } else if (event.target.id === 'bookmarkModal') {
+                    closeBookmarkModal();
+                } else if (event.target.id === 'constructionModal') {
+                    closeConstructionModal();
+                }
+            }
+        }
+    </script>
+</body>
+</html>

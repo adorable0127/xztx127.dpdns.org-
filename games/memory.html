@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆翻牌 · 小游戏厅</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#14161a;color:#e8e6e0;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;gap:16px}
+  #backBtn{position:fixed;top:16px;left:16px;padding:8px 16px;border:none;border-radius:8px;background:#7b7bff;color:#10103a;font-weight:700;font-size:13px;cursor:pointer;z-index:10}
+  #backBtn:hover{opacity:.85}
+  h1{font-size:22px;color:#9a9aff}
+  .hud{display:flex;gap:24px;font-size:15px}.hud b{color:#9a9aff}
+  .wrap{position:relative;background:#1d2026;border-radius:14px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  .grid{display:grid;grid-template-columns:repeat(4,72px);gap:10px}
+  .card{width:72px;height:72px;border-radius:10px;cursor:pointer;position:relative;transform-style:preserve-3d;transition:transform .35s;background:transparent}
+  .card.flip,.card.done{transform:rotateY(180deg)}
+  .face{position:absolute;inset:0;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:34px;backface-visibility:hidden}
+  .back{background:linear-gradient(135deg,#3a3a52,#2a2a3e);border:2px solid #54547a}
+  .back::after{content:'?';color:#7b7bff;font-size:26px;font-weight:700}
+  .front{background:#23232f;border:2px solid #7b7bff;transform:rotateY(180deg)}
+  .card.done .front{border-color:#5ed47a;background:#1a2a1e}
+  .overlay{position:absolute;inset:0;background:rgba(12,13,16,.93);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:20px;z-index:5}
+  .overlay.hide{display:none}.overlay h2{font-size:22px}.overlay p{font-size:13px;color:#8a8d94;max-width:260px;line-height:1.7}
+  .btn{padding:11px 22px;border:none;border-radius:8px;background:#7b7bff;color:#10103a;font-weight:700;font-size:15px;cursor:pointer}.btn:hover{opacity:.85}
+  .hint{font-size:12px;color:#8a8d94}
+</style>
+</head>
+<body>
+<button id="backBtn" onclick="location.href='../arcade.html'">← 返回游戏厅</button>
+<h1>🃏 记忆翻牌</h1>
+<div class="hud"><span>步数 <b id="moves">0</b></span><span>用时 <b id="time">0</b>s</span><span>最佳 <b id="best">—</b></span></div>
+<div class="wrap">
+  <div class="grid" id="grid"></div>
+  <div class="overlay" id="overlay">
+    <h2 id="ovTitle">记忆翻牌</h2>
+    <p id="ovText">翻开两张相同的方块即可消除。用最少的步数把全部 8 对配对完成！</p>
+    <button class="btn" id="startBtn">开始游戏</button>
+  </div>
+</div>
+<div class="hint">点击方块翻面 · 配对消除</div>
+<script>
+(function(){
+  const ICONS=['🟩','⛏️','💎','🔥','🐷','💣','🍎','⭐'];
+  const grid=document.getElementById('grid'),overlay=document.getElementById('overlay');
+  const movesEl=document.getElementById('moves'),timeEl=document.getElementById('time'),bestEl=document.getElementById('best');
+  const ovTitle=document.getElementById('ovTitle'),ovText=document.getElementById('ovText'),startBtn=document.getElementById('startBtn');
+  let deck,first,second,lock,moves,matched,timer,sec,best=null,running=false;
+  function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]];}return a;}
+  function build(){
+    grid.innerHTML='';deck=shuffle(ICONS.concat(ICONS));
+    deck.forEach((ic,i)=>{
+      const card=document.createElement('div');card.className='card';card.dataset.i=i;card.dataset.ic=ic;
+      card.innerHTML='<div class="face back"></div><div class="face front">'+ic+'</div>';
+      card.addEventListener('click',()=>flip(card));grid.appendChild(card);
+    });
+  }
+  function start(){build();first=second=null;lock=false;moves=0;matched=0;sec=0;movesEl.textContent=0;timeEl.textContent=0;overlay.classList.add('hide');running=true;clearInterval(timer);timer=setInterval(()=>{sec++;timeEl.textContent=sec;},1000);}
+  function flip(card){
+    if(lock||!running||card.classList.contains('flip')||card.classList.contains('done'))return;
+    card.classList.add('flip');
+    if(!first){first=card;return;}
+    second=card;moves++;movesEl.textContent=moves;lock=true;
+    if(first.dataset.ic===second.dataset.ic){
+      setTimeout(()=>{first.classList.add('done');second.classList.add('done');first.classList.remove('flip');second.classList.remove('flip');first=second=null;lock=false;matched++;if(matched===ICONS.length)win();},420);
+    }else{
+      setTimeout(()=>{first.classList.remove('flip');second.classList.remove('flip');first=second=null;lock=false;},760);
+    }
+  }
+  function win(){
+    running=false;clearInterval(timer);
+    if(best===null||moves<best){best=moves;bestEl.textContent=best;}
+    ovTitle.textContent='全部配对完成！🎉';ovText.textContent='用了 '+moves+' 步、'+sec+' 秒。再挑战一次？';startBtn.textContent='再来一局';overlay.classList.remove('hide');
+  }
+  startBtn.onclick=start;
+})();
+</script>
+</body>
+</html>

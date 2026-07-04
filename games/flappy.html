@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>像素小鸟 · 小游戏厅</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#14161a;color:#e8e6e0;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;gap:16px}
+  #backBtn{position:fixed;top:16px;left:16px;padding:8px 16px;border:none;border-radius:8px;background:#ffd83d;color:#3a2c00;font-weight:700;font-size:13px;cursor:pointer;z-index:10}
+  #backBtn:hover{opacity:.85}
+  h1{font-size:22px;color:#ffd83d}
+  .hud{display:flex;gap:24px;font-size:15px}.hud b{color:#ffd83d}
+  .wrap{position:relative;background:#1d2026;border-radius:12px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  canvas{display:block;border-radius:6px;image-rendering:pixelated;cursor:pointer;touch-action:none}
+  .overlay{position:absolute;inset:12px;background:rgba(12,13,16,.9);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:20px}
+  .overlay.hide{display:none}.overlay h2{font-size:22px}.overlay p{font-size:13px;color:#8a8d94;max-width:240px;line-height:1.7}
+  .btn{padding:11px 22px;border:none;border-radius:8px;background:#ffd83d;color:#3a2c00;font-weight:700;font-size:15px;cursor:pointer}.btn:hover{opacity:.85}
+  .hint{font-size:12px;color:#8a8d94}
+</style>
+</head>
+<body>
+<button id="backBtn" onclick="location.href='../arcade.html'">← 返回游戏厅</button>
+<h1>🐤 像素小鸟</h1>
+<div class="hud"><span>分数 <b id="score">0</b></span><span>最高 <b id="best">0</b></span></div>
+<div class="wrap">
+  <canvas id="cv" width="360" height="480"></canvas>
+  <div class="overlay" id="overlay">
+    <h2>像素小鸟</h2>
+    <p>点击屏幕 / 空格 让小鸟向上扑腾，穿过管道缝隙。别撞管道，也别落地！</p>
+    <button class="btn" id="startBtn">开始游戏</button>
+  </div>
+</div>
+<div class="hint">点击 / 空格 / ↑ 扑腾</div>
+<script>
+(function(){
+  const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  const scoreEl=document.getElementById('score'),bestEl=document.getElementById('best');
+  const overlay=document.getElementById('overlay'),startBtn=document.getElementById('startBtn'),ovTitle=overlay.querySelector('h2'),ovText=overlay.querySelector('p');
+  const GRAV=0.42,FLAP=-6.6,GAP=128,PIPE_W=54,SPEED=2.3,GROUND=60;
+  let bird,pipes,score,best=0,running=false,frame;
+  function reset(){bird={x:90,y:H/2,vy:0,r:13,rot:0};pipes=[];score=0;frame=0;scoreEl.textContent=0;spawn();}
+  function spawn(){const minY=50,maxY=H-GROUND-GAP-50;const gy=minY+Math.random()*(maxY-minY);pipes.push({x:W,gy:gy,passed:false});}
+  function flap(){if(!running)return;bird.vy=FLAP;}
+  function start(){reset();overlay.classList.add('hide');running=true;loop();}
+  function end(){running=false;best=Math.max(best,score);bestEl.textContent=best;ovTitle.textContent='坠机了！';ovText.textContent='得分 '+score+'，再来一局？';startBtn.textContent='重新开始';overlay.classList.remove('hide');}
+  function update(){
+    frame++;bird.vy+=GRAV;bird.y+=bird.vy;bird.rot=Math.max(-0.4,Math.min(1.4,bird.vy/9));
+    if(frame%96===0)spawn();
+    for(const p of pipes){p.x-=SPEED;
+      if(!p.passed&&p.x+PIPE_W<bird.x){p.passed=true;score++;scoreEl.textContent=score;}
+      if(bird.x+bird.r>p.x&&bird.x-bird.r<p.x+PIPE_W&&(bird.y-bird.r<p.gy||bird.y+bird.r>p.gy+GAP)){return end();}
+    }
+    pipes=pipes.filter(p=>p.x+PIPE_W>-4);
+    if(bird.y+bird.r>H-GROUND){bird.y=H-GROUND-bird.r;return end();}
+    if(bird.y-bird.r<0){bird.y=bird.r;bird.vy=0;}
+  }
+  function draw(){
+    const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#4ec0 e8'.replace(' ',''));g.addColorStop(1,'#9be0f5');
+    ctx.fillStyle='#4ec0e8';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='rgba(255,255,255,.5)';for(let i=0;i<3;i++){const cx=((frame*0.3+i*140)%(W+80))-40;ctx.beginPath();ctx.arc(cx,70+i*30,18,0,7);ctx.arc(cx+20,70+i*30,22,0,7);ctx.arc(cx+42,70+i*30,16,0,7);ctx.fill();}
+    for(const p of pipes){ctx.fillStyle='#5ea52d';ctx.fillRect(p.x,0,PIPE_W,p.gy);ctx.fillRect(p.x,p.gy+GAP,PIPE_W,H-GROUND-(p.gy+GAP));
+      ctx.fillStyle='#74c23c';ctx.fillRect(p.x+4,0,6,p.gy);ctx.fillRect(p.x+4,p.gy+GAP,6,H-GROUND-(p.gy+GAP));
+      ctx.fillStyle='#3d7d1e';ctx.fillRect(p.x-3,p.gy-16,PIPE_W+6,16);ctx.fillRect(p.x-3,p.gy+GAP,PIPE_W+6,16);}
+    ctx.fillStyle='#c8a24a';ctx.fillRect(0,H-GROUND,W,GROUND);ctx.fillStyle='#79553a';ctx.fillRect(0,H-GROUND,W,8);
+    ctx.fillStyle='#5ea52d';for(let x=((-frame*SPEED)%24);x<W;x+=24){ctx.fillRect(x,H-GROUND,12,6);}
+    ctx.save();ctx.translate(bird.x,bird.y);ctx.rotate(bird.rot);
+    ctx.fillStyle='#ffd83d';ctx.fillRect(-13,-11,26,22);
+    ctx.fillStyle='#ffae00';ctx.fillRect(-13,5,26,6);ctx.fillRect(8,-2,9,7);
+    ctx.fillStyle='#fff';ctx.fillRect(2,-8,8,8);ctx.fillStyle='#000';ctx.fillRect(6,-6,4,4);
+    ctx.fillStyle='#ff8a3d';ctx.fillRect(13,0,7,5);
+    ctx.fillStyle='#f0c000';ctx.fillRect(-11,-2,12,8);
+    ctx.restore();
+  }
+  function loop(){if(!running)return;update();if(!running)return;draw();requestAnimationFrame(loop);}
+  function press(e){e.preventDefault();if(!running&&overlay.classList.contains('hide'))return;flap();}
+  cv.addEventListener('mousedown',press);
+  cv.addEventListener('touchstart',press,{passive:false});
+  document.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();flap();}});
+  startBtn.onclick=start;
+  reset();draw();
+})();
+</script>
+</body>
+</html>

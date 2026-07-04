@@ -1,0 +1,120 @@
+/* =====================================================================
+   arcade.css  ·  小游戏厅（arcade.html）专属样式
+   ===================================================================== */
+
+body.arcade {
+  min-height: 100vh;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(0,0,0,.16) 31px, rgba(0,0,0,.16) 32px),
+    repeating-linear-gradient(90deg, transparent, transparent 31px, rgba(0,0,0,.16) 31px, rgba(0,0,0,.16) 32px),
+    #161624;
+  background-size: 32px 32px, 32px 32px, auto;
+  padding: 70px 16px 50px;
+}
+
+.arc-wrap { max-width: 920px; margin: 0 auto; }
+
+.arc-header { text-align: center; margin-bottom: 22px; position: relative; }
+.arc-header .mc-title { font-size: clamp(22px, 4.5vw, 38px); }
+.arc-header .arc-splash { display: inline-block; margin-top: 12px; font-size: 11px; }
+
+/* 标签页 */
+.tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 22px; flex-wrap: wrap; }
+.tab {
+  font-family: var(--font-pixel); font-size: 9px; letter-spacing: 1px;
+  padding: 11px 18px; cursor: pointer; user-select: none;
+  background: #25252f; color: #888;
+  border: 3px solid #3a3a44; border-top-color: #4a4a55; border-left-color: #4a4a55;
+}
+.tab:hover { color: #fff; background: #2f2f3a; }
+.tab.on { background: var(--ui-panel); color: var(--mc-gold); border-color: var(--mc-gold); }
+
+/* ---------- 小游戏网格 ---------- */
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+}
+.game-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 20px 12px; cursor: pointer; text-align: center;
+  background: rgba(255,255,255,.04);
+  border: 3px solid #3a3a44; border-top-color: #55555f; border-left-color: #55555f;
+  transition: transform .1s, border-color .1s, background .1s;
+  color: #fff;
+}
+.game-card:hover { transform: translateY(-4px); background: rgba(123,123,255,.1); border-color: var(--mc-blue); }
+.game-card:focus-visible { outline: 2px solid #fff; }
+.gc-icon {
+  width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;
+  font-size: 30px; border: 3px solid #555; border-radius: 4px;
+}
+.gc-name { font-family: var(--font-pixel); font-size: 9px; line-height: 1.5; }
+.gc-en { font-size: 9px; color: var(--ui-text-dim); }
+.gc-tag {
+  font-family: var(--font-pixel); font-size: 6px; color: var(--mc-gold);
+  border: 1px solid var(--mc-gold-dark); padding: 3px 6px; border-radius: 2px;
+}
+
+/* ---------- 模组库 ---------- */
+.mod-section-title {
+  font-family: var(--font-pixel); font-size: 11px; color: var(--mc-green);
+  text-shadow: 2px 2px var(--mc-green-dark);
+  margin: 10px 0 14px; padding-bottom: 8px; border-bottom: 2px solid #2a2a34;
+}
+.mod-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px; margin-bottom: 12px;
+  background: rgba(255,255,255,.04);
+  border: 2px solid #3a3a44; border-top-color: #55555f; border-left-color: #55555f;
+}
+.mod-card:hover { border-color: var(--mc-green); background: rgba(88,165,45,.06); }
+.mod-icon {
+  width: 56px; height: 56px; flex-shrink: 0; font-size: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: #2a2a34; border: 2px solid #555; border-radius: 6px;
+}
+.mod-body { flex: 1; min-width: 0; }
+.mod-title { font-family: var(--font-pixel); font-size: 10px; line-height: 1.6; color: #fff; }
+.mod-en { font-size: 11px; color: var(--ui-text-dim); font-family: var(--font-body); }
+.mod-tags { display: flex; gap: 6px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+.mod-tag {
+  font-family: var(--font-pixel); font-size: 6px; color: #cdebc0;
+  background: rgba(88,165,45,.18); border: 1px solid var(--mc-green-mid);
+  padding: 3px 7px; border-radius: 2px;
+}
+.mod-dl { font-family: var(--font-pixel); font-size: 6px; color: var(--ui-text-dim); }
+.mod-desc { font-size: 13px; line-height: 1.7; color: #cfcfd6; }
+.mod-btn { flex-shrink: 0; align-self: center; }
+
+@media (max-width: 560px) {
+  .mod-card { flex-wrap: wrap; }
+  .mod-btn { width: 100%; }
+}
+
+/* ---------- 联系作者 ---------- */
+.contact-intro { text-align: center; font-size: 13px; color: #cfcfd6; margin-bottom: 20px; line-height: 1.8; }
+.contacts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.contact-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; text-decoration: none; cursor: pointer; text-align: left;
+  background: rgba(255,255,255,.04);
+  border: 2px solid #3a3a44; border-top-color: #55555f; border-left-color: #55555f;
+  color: #fff; font-family: inherit;
+}
+.contact-card:hover { border-color: var(--mc-gold); background: rgba(255,216,61,.07); transform: translateY(-2px); }
+.ct-icon {
+  width: 40px; height: 40px; flex-shrink: 0; font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: #2a2a34; border: 2px solid #555; border-radius: 6px;
+}
+.ct-body { display: flex; flex-direction: column; min-width: 0; }
+.ct-label { font-family: var(--font-pixel); font-size: 8px; color: var(--mc-gold); }
+.ct-label i { color: var(--ui-text-dim); font-style: normal; font-size: 7px; }
+.ct-value { font-size: 13px; color: #e8e8ee; margin-top: 4px; word-break: break-all; }
+
+.arc-footer { text-align: center; margin-top: 30px; font-family: var(--font-pixel); font-size: 6px; color: #444; line-height: 2.6; }

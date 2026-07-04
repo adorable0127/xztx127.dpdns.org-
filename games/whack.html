@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>打苦力怕 · 小游戏厅</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:#14161a;color:#e8e6e0;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;gap:16px}
+  #backBtn{position:fixed;top:16px;left:16px;padding:8px 16px;border:none;border-radius:8px;background:#58a52d;color:#0a1f06;font-weight:700;font-size:13px;cursor:pointer;z-index:10}
+  #backBtn:hover{opacity:.85}
+  h1{font-size:22px;color:#6cc23a}
+  .hud{display:flex;gap:24px;font-size:15px}.hud b{color:#6cc23a}
+  .wrap{position:relative;background:#1d2026;border-radius:14px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  .grid{display:grid;grid-template-columns:repeat(3,96px);grid-template-rows:repeat(3,96px);gap:14px}
+  .hole{position:relative;width:96px;height:96px;background:radial-gradient(ellipse at 50% 90%,#1a1208 60%,#2a1d10);border-radius:50%/40%;overflow:hidden;cursor:pointer;border:3px solid #3a2818}
+  .mob{position:absolute;left:50%;bottom:-100%;transform:translateX(-50%);width:62px;height:62px;font-size:48px;line-height:62px;text-align:center;transition:bottom .12s;user-select:none}
+  .mob.up{bottom:8px}
+  .mob.hit{animation:bonk .25s}
+  @keyframes bonk{0%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.35) rotate(8deg)}100%{transform:translateX(-50%) scale(0)}}
+  .lip{position:absolute;left:0;bottom:0;width:100%;height:26px;background:linear-gradient(#3a2818,#241910);border-radius:50%/100% 100% 0 0;pointer-events:none}
+  .overlay{position:absolute;inset:0;background:rgba(12,13,16,.94);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:20px;z-index:5}
+  .overlay.hide{display:none}.overlay h2{font-size:22px}.overlay p{font-size:13px;color:#8a8d94;max-width:280px;line-height:1.8}
+  .btn{padding:11px 22px;border:none;border-radius:8px;background:#58a52d;color:#0a1f06;font-weight:700;font-size:15px;cursor:pointer}.btn:hover{opacity:.85}
+  .hint{font-size:12px;color:#8a8d94;text-align:center;max-width:320px;line-height:1.6}
+</style>
+</head>
+<body>
+<button id="backBtn" onclick="location.href='../arcade.html'">← 返回游戏厅</button>
+<h1>💥 打苦力怕</h1>
+<div class="hud"><span>分数 <b id="score">0</b></span><span>剩余 <b id="time">30</b>s</span><span>最高 <b id="best">0</b></span></div>
+<div class="wrap">
+  <div class="grid" id="grid"></div>
+  <div class="overlay" id="overlay">
+    <h2 id="ovTitle">打苦力怕</h2>
+    <p id="ovText">敲打冒出来的苦力怕 🟢 得分！但别打到小猪 🐷，会扣分。30 秒内拿到尽量高的分数。</p>
+    <button class="btn" id="startBtn">开始游戏</button>
+  </div>
+</div>
+<div class="hint">点击苦力怕 +10 · 误击小猪 -5 · 漏掉不扣分</div>
+<script>
+(function(){
+  const grid=document.getElementById('grid'),overlay=document.getElementById('overlay');
+  const scoreEl=document.getElementById('score'),timeEl=document.getElementById('time'),bestEl=document.getElementById('best');
+  const ovTitle=document.getElementById('ovTitle'),ovText=document.getElementById('ovText'),startBtn=document.getElementById('startBtn');
+  let holes=[],score,time,best=0,running=false,spawnTimer,clockTimer;
+  for(let i=0;i<9;i++){
+    const hole=document.createElement('div');hole.className='hole';
+    const mob=document.createElement('div');mob.className='mob';
+    const lip=document.createElement('div');lip.className='lip';
+    hole.appendChild(mob);hole.appendChild(lip);grid.appendChild(hole);
+    const obj={mob:mob,active:false,kind:null,timeout:null};
+    hole.addEventListener('click',()=>whack(obj));
+    holes.push(obj);
+  }
+  function whack(o){
+    if(!running||!o.active)return;
+    if(o.kind==='creeper'){score+=10;o.mob.classList.add('hit');}
+    else{score=Math.max(0,score-5);o.mob.classList.add('hit');}
+    scoreEl.textContent=score;o.active=false;clearTimeout(o.timeout);
+    setTimeout(()=>{o.mob.className='mob';},250);
+  }
+  function pop(){
+    if(!running)return;
+    const free=holes.filter(h=>!h.active);
+    if(free.length){
+      const o=free[Math.random()*free.length|0];
+      o.kind=Math.random()<0.78?'creeper':'pig';
+      o.mob.textContent=o.kind==='creeper'?'🟩':'🐷';
+      o.mob.className='mob up';o.active=true;
+      const dur=620+Math.random()*620;
+      o.timeout=setTimeout(()=>{o.mob.className='mob';o.active=false;},dur);
+    }
+    const next=Math.max(280,720-(30-time)*16);
+    spawnTimer=setTimeout(pop,next);
+  }
+  function start(){
+    score=0;time=30;scoreEl.textContent=0;timeEl.textContent=30;running=true;overlay.classList.add('hide');
+    holes.forEach(o=>{o.active=false;o.mob.className='mob';});
+    pop();
+    clockTimer=setInterval(()=>{time--;timeEl.textContent=time;if(time<=0)end();},1000);
+  }
+  function end(){
+    running=false;clearTimeout(spawnTimer);clearInterval(clockTimer);
+    holes.forEach(o=>{o.mob.className='mob';o.active=false;clearTimeout(o.timeout);});
+    best=Math.max(best,score);bestEl.textContent=best;
+    ovTitle.textContent='时间到！';ovText.textContent='你打了 '+score+' 分，再来一局？';startBtn.textContent='再玩一次';overlay.classList.remove('hide');
+  }
+  startBtn.onclick=start;
+})();
+</script>
+</body>
+</html>

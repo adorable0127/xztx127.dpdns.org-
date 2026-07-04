@@ -1,0 +1,232 @@
+/* =====================================================================
+   mc-ui.css  ·  共享的 Minecraft 风格界面套件
+   被 index.html / server.html / arcade.html 共同引用。
+   只放“通用组件”（按钮、面板、字体、粒子、通知、标语）。
+   页面专属样式请写在各自的 menu.css / server.css / arcade.css。
+   ===================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+:root {
+  /* 调色板 —— 取自 Minecraft 1.20.1 的标志色 */
+  --mc-green:       #58a52d;
+  --mc-green-dark:  #2c5e15;
+  --mc-green-mid:   #3d7d1e;
+  --mc-dirt:        #79553a;
+  --mc-dirt-dark:   #4b3621;
+  --mc-dirt-deep:   #3a2818;
+  --mc-stone:       #8b8b8b;
+  --mc-gold:        #ffd83d;
+  --mc-gold-dark:   #a07a00;
+  --mc-yellow:      #ffff55;
+  --mc-red:         #d83c3c;
+  --mc-blue:        #7b7bff;
+
+  /* 界面色 */
+  --ui-panel:       rgba(12, 12, 16, 0.82);
+  --ui-panel-solid: #1a1a1f;
+  --ui-btn:         #6f6f6f;
+  --ui-btn-hi:      #b6b6b6;   /* 按钮亮边 */
+  --ui-btn-lo:      #2b2b2b;   /* 按钮暗边 */
+  --ui-text:        #ffffff;
+  --ui-text-dim:    #a0a0a0;
+  --ui-shadow:      #3f3f3f;
+
+  /* 字体 */
+  --font-pixel: 'Press Start 2P', 'Courier New', monospace;
+  --font-body:  'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  min-height: 100%;
+  background: #101018;
+  color: var(--ui-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+img { image-rendering: pixelated; }
+
+/* ---------------------------------------------------------------------
+   像素按钮 —— 模仿 MC 主菜单按钮（亮边 / 暗边的立体感 + 悬停高亮）
+   --------------------------------------------------------------------- */
+.mc-btn {
+  display: block;
+  width: 100%;
+  padding: 13px 16px;
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 1px;
+  color: var(--ui-text);
+  text-shadow: 2px 2px var(--ui-shadow);
+  background: var(--ui-btn);
+  border: none;
+  outline: none;
+  cursor: pointer;
+  text-align: center;
+  user-select: none;
+  /* 立体描边：上/左亮，下/右暗 */
+  border-top: 3px solid var(--ui-btn-hi);
+  border-left: 3px solid var(--ui-btn-hi);
+  border-right: 3px solid var(--ui-btn-lo);
+  border-bottom: 3px solid var(--ui-btn-lo);
+  transition: background .08s, color .08s;
+}
+.mc-btn:hover,
+.mc-btn:focus-visible {
+  background: #7a8a6a;                /* MC 悬停时的淡绿高亮 */
+  color: var(--mc-yellow);
+  border-top-color: #c9d8b6;
+  border-left-color: #c9d8b6;
+}
+.mc-btn:active { transform: translate(1px, 1px); }
+.mc-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+.mc-btn.red:hover,
+.mc-btn.red:focus-visible { background: #b23b3b; color: #fff; }
+
+.mc-btn.ghost {
+  background: rgba(40, 40, 46, 0.7);
+  color: var(--ui-text-dim);
+}
+.mc-btn.ghost:hover { color: var(--ui-text); background: rgba(70, 70, 78, 0.8); }
+
+.mc-btn.sm  { font-size: 8px;  padding: 8px 12px; width: auto; display: inline-block; }
+.mc-btn.tiny{ font-size: 7px;  padding: 6px 9px;  width: auto; display: inline-block; }
+
+/* 一排两个按钮（MC 里 选项 / 退出 常常并排） */
+.mc-btn-row { display: flex; gap: 10px; }
+.mc-btn-row .mc-btn { width: auto; flex: 1; }
+
+/* ---------------------------------------------------------------------
+   面板 —— 深色半透明 + 内描边
+   --------------------------------------------------------------------- */
+.mc-panel {
+  position: relative;
+  background: var(--ui-panel);
+  border: 3px solid #565656;
+  border-top-color: #8a8a8a;
+  border-left-color: #8a8a8a;
+  padding: 22px;
+}
+.mc-panel::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid #000;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------
+   标题文字（绿色 MC LOGO 风）
+   --------------------------------------------------------------------- */
+.mc-title {
+  font-family: var(--font-pixel);
+  color: var(--mc-green);
+  text-shadow: 4px 4px var(--mc-green-dark), 2px 2px var(--mc-green-mid);
+  letter-spacing: 3px;
+  line-height: 1.3;
+}
+.mc-subtitle {
+  font-family: var(--font-pixel);
+  color: var(--mc-gold);
+  text-shadow: 2px 2px var(--mc-gold-dark);
+  letter-spacing: 2px;
+}
+
+/* ---------------------------------------------------------------------
+   悬浮标语（splash text）—— 黄色、倾斜、一跳一跳
+   由 js/splashes.js 填充文字
+   --------------------------------------------------------------------- */
+.mc-splash {
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  color: var(--mc-yellow);
+  text-shadow: 2px 2px #3f3f00;
+  display: inline-block;
+  transform: rotate(-18deg);
+  transform-origin: center;
+  animation: mc-splash-bob .9s ease-in-out infinite alternate;
+  cursor: default;
+  white-space: nowrap;
+}
+@keyframes mc-splash-bob {
+  from { transform: rotate(-18deg) scale(1); }
+  to   { transform: rotate(-18deg) scale(1.12); }
+}
+
+/* ---------------------------------------------------------------------
+   背景飘落粒子（草/方块碎屑）
+   --------------------------------------------------------------------- */
+.mc-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  pointer-events: none;
+  opacity: .7;
+  animation: mc-pfloat linear infinite;
+}
+@keyframes mc-pfloat {
+  0%   { transform: translateY(100%) rotate(0deg);   opacity: .65; }
+  100% { transform: translateY(-30px) rotate(180deg); opacity: 0; }
+}
+
+/* ---------------------------------------------------------------------
+   通知 toast（右下角）
+   --------------------------------------------------------------------- */
+#mc-notifs {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.mc-notif {
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  line-height: 1.6;
+  color: #fff;
+  background: #1c1c22;
+  border: 2px solid var(--mc-green);
+  border-left: 5px solid var(--mc-green);
+  padding: 11px 14px;
+  max-width: 280px;
+  word-break: break-word;
+  animation: mc-notif-in .22s ease;
+}
+.mc-notif.err { border-color: var(--mc-red); border-left-color: var(--mc-red); }
+@keyframes mc-notif-in {
+  from { transform: translateX(90px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ---------------------------------------------------------------------
+   返回按钮（游戏 / 子页面通用，左上角）
+   --------------------------------------------------------------------- */
+.mc-back {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 500;
+  font-family: var(--font-pixel);
+  font-size: 9px;
+}
+
+/* 可访问性：尊重「减少动画」 */
+@media (prefers-reduced-motion: reduce) {
+  .mc-splash, .mc-particle, .mc-notif { animation: none !important; }
+}
+
+/* 细滚动条，贴合深色主题 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #15151b; }
+::-webkit-scrollbar-thumb { background: #3a3a42; border: 2px solid #15151b; }
+::-webkit-scrollbar-thumb:hover { background: #4d4d57; }

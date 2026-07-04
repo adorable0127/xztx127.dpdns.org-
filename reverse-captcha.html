@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>人机验证 · 仅限机器人</title>
+<style>
+  :root{
+    --void:#0a0c11; --panel:#0f131b; --panel-2:#131925;
+    --line:#222a3a; --line-soft:#1a2130;
+    --ink:#c7d0e0; --dim:#586079; --faint:#39415a;
+    --amber:#ffb454; --amber-glow:rgba(255,180,84,.16);
+    --mint:#54e7c0;  --mint-glow:rgba(84,231,192,.14);
+    --red:#ff5d6c;   --red-glow:rgba(255,93,108,.14);
+    --human:#ff9270; --human-glow:rgba(255,146,112,.16);
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono","Cascadia Code","Fira Code",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:radial-gradient(1200px 800px at 50% -10%, #11151f 0%, var(--void) 60%), var(--void);
+    color:var(--ink); font-family:var(--mono); -webkit-font-smoothing:antialiased;
+    display:flex; align-items:center; justify-content:center; padding:28px 18px; min-height:100%; overflow-x:hidden;
+  }
+  .device{
+    width:100%; max-width:560px;
+    background:linear-gradient(180deg,var(--panel) 0%, #0c1017 100%);
+    border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 30px 80px -40px #000;
+    overflow:hidden; position:relative;
+  }
+  .device::after{
+    content:""; position:absolute; left:0; right:0; top:0; height:2px;
+    background:linear-gradient(90deg,transparent, var(--amber-glow), transparent);
+    opacity:.5; animation:scan 7s linear infinite; pointer-events:none;
+  }
+  @keyframes scan{ 0%{transform:translateY(0)} 100%{transform:translateY(900px)} }
+
+  .head{ display:flex; align-items:center; justify-content:space-between; padding:13px 18px; border-bottom:1px solid var(--line-soft); background:var(--panel-2); }
+  .head .id{ display:flex; align-items:center; gap:9px; font-size:11px; letter-spacing:.16em; color:var(--dim); text-transform:uppercase; }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--amber); box-shadow:0 0 10px var(--amber); animation:pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.25} }
+  .head .ver{ font-size:11px; letter-spacing:.14em; color:var(--faint); }
+
+  .body{ padding:24px 22px 22px; }
+  .title h1{ margin:0; font-size:30px; font-weight:700; letter-spacing:.04em; color:var(--ink); }
+  .title .en{ margin-top:7px; font-size:11px; letter-spacing:.32em; text-transform:uppercase; color:var(--dim); }
+  .title .tag{ margin-top:14px; font-size:12.5px; line-height:1.5; color:var(--amber); letter-spacing:.02em; }
+  .title .tag .sub{ color:var(--faint); letter-spacing:.16em; font-size:10.5px; display:block; margin-top:3px; }
+
+  /* signature meter */
+  .meter{
+    margin:22px 0 6px; border:1px solid var(--line-soft); border-radius:10px;
+    background:repeating-linear-gradient(90deg, transparent 0 26px, rgba(255,255,255,.012) 26px 27px), #0a0e15;
+    padding:16px 18px 14px; position:relative; transition:border-color .3s, box-shadow .3s;
+  }
+  .meter.active{ border-color:rgba(255,180,84,.4); box-shadow:0 0 0 1px var(--amber-glow), 0 0 40px -18px var(--amber); }
+  .meter.pass{ border-color:rgba(84,231,192,.45); box-shadow:0 0 0 1px var(--mint-glow), 0 0 40px -18px var(--mint); }
+  .meter.fail{ border-color:rgba(255,93,108,.45); box-shadow:0 0 0 1px var(--red-glow), 0 0 40px -18px var(--red); }
+  .meter .row1{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+  .meter .label{ font-size:10px; letter-spacing:.18em; color:var(--dim); text-transform:uppercase; }
+  .meter .status{ font-size:11px; letter-spacing:.14em; color:var(--amber); text-transform:uppercase; white-space:nowrap; }
+  .meter.pass .status{ color:var(--mint) } .meter.fail .status{ color:var(--red) }
+  .meter .read{ display:flex; align-items:baseline; gap:8px; margin-top:8px; font-variant-numeric:tabular-nums; }
+  .meter .num{ font-size:44px; font-weight:700; line-height:1; letter-spacing:.01em; color:var(--amber); font-variant-numeric:tabular-nums; transition:color .25s; }
+  .meter.pass .num{ color:var(--mint) } .meter.fail .num{ color:var(--red) } .meter.idle .num{ color:var(--ink) }
+  .meter .unit{ font-size:15px; color:var(--dim); letter-spacing:.05em; }
+  .meter .thresh{ margin-top:9px; font-size:10.5px; color:var(--faint); letter-spacing:.03em; line-height:1.4; }
+  .meter .thresh b{ color:var(--dim); font-weight:400 }
+
+  /* tracker */
+  .track{ margin-top:18px; border-top:1px solid var(--line-soft); }
+  .step{ display:grid; grid-template-columns:34px 1fr auto; align-items:center; gap:12px; padding:11px 2px; border-bottom:1px solid var(--line-soft); }
+  .step .ix{ font-size:11px; color:var(--faint); letter-spacing:.1em; font-variant-numeric:tabular-nums; }
+  .step .meta .name{ font-size:13px; color:var(--ink); letter-spacing:.02em; }
+  .step .meta .desc{ font-size:10.5px; color:var(--dim); margin-top:2px; letter-spacing:.02em; line-height:1.4; }
+  .step .state{ font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); border:1px solid var(--line-soft); border-radius:99px; padding:3px 9px; white-space:nowrap; }
+  .step[data-s="active"]{ background:linear-gradient(90deg, var(--amber-glow), transparent 70%); }
+  .step[data-s="active"] .ix{ color:var(--amber) } .step[data-s="active"] .state{ color:var(--amber); border-color:rgba(255,180,84,.4) }
+  .step[data-s="pass"] .ix{ color:var(--mint) } .step[data-s="pass"] .state{ color:var(--mint); border-color:rgba(84,231,192,.35) }
+  .step[data-s="fail"] .ix{ color:var(--red) } .step[data-s="fail"] .state{ color:var(--red); border-color:rgba(255,93,108,.4) }
+
+  /* live stage */
+  .stage{ margin-top:16px; } .stage:empty{ display:none }
+  .card{ border:1px solid var(--line-soft); border-radius:10px; background:#0a0e15; padding:16px; animation:rise .28s ease; }
+  @keyframes rise{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+  .card .q{ font-size:12px; color:var(--dim); letter-spacing:.03em; margin-bottom:10px; line-height:1.55; }
+  .card .data{ font-size:14px; color:var(--amber); word-break:break-all; letter-spacing:.05em; background:#0d1320; border:1px dashed var(--line); border-radius:7px; padding:10px 12px; user-select:all; line-height:1.5; }
+  .card .data.flash{ color:var(--mint); border-color:rgba(84,231,192,.4) }
+  .card .expr{ color:var(--ink); font-size:15px } .card .expr .v{ color:var(--amber) }
+
+  .pad{ margin-top:12px; height:92px; border-radius:8px; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:13px; letter-spacing:.18em; text-transform:uppercase; cursor:pointer; transition:background .04s, color .04s, border-color .04s; background:#0c1119; color:var(--dim); user-select:none; text-align:center; }
+  .pad.live{ background:var(--amber); color:#1a1206; border-color:var(--amber); box-shadow:0 0 50px -8px var(--amber); }
+
+  .inrow{ display:flex; gap:8px; margin-top:12px; }
+  .inrow input{ flex:1; min-width:0; background:#0c1119; border:1px solid var(--line); border-radius:7px; color:var(--ink); font-family:var(--mono); font-size:13px; padding:11px 12px; letter-spacing:.04em; outline:none; transition:border-color .2s; }
+  .inrow input:focus{ border-color:var(--amber) } .inrow input::placeholder{ color:var(--faint) }
+
+  .bar{ height:6px; background:#0c1119; border:1px solid var(--line); border-radius:99px; overflow:hidden; margin-top:13px; }
+  .bar > i{ display:block; height:100%; width:0%; background:var(--amber); }
+  .bar.marquee > i{ width:35%; background:linear-gradient(90deg,transparent,var(--amber),transparent); animation:mq 1s linear infinite; }
+  @keyframes mq{ 0%{transform:translateX(-120%)} 100%{transform:translateX(340%)} }
+
+  .beats{ display:flex; gap:9px; margin-top:14px; justify-content:center; flex-wrap:wrap; }
+  .beats > span{ width:13px; height:13px; border-radius:50%; border:1px solid var(--line); background:#0c1119; transition:transform .06s, background .06s, border-color .06s, box-shadow .06s; }
+  .beats > span.now{ border-color:var(--amber); box-shadow:0 0 12px var(--amber); transform:scale(1.25) }
+  .beats > span.hit{ background:var(--mint); border-color:var(--mint); box-shadow:0 0 8px var(--mint) }
+  .beats > span.miss{ background:var(--red); border-color:var(--red) }
+  .hint{ font-size:10.5px; color:var(--faint); margin-top:10px; letter-spacing:.03em; line-height:1.5 }
+
+  .controls{ display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
+  button.btn{ font-family:var(--mono); font-size:12.5px; letter-spacing:.07em; text-transform:uppercase; border-radius:8px; padding:13px 16px; cursor:pointer; border:1px solid transparent; transition:transform .08s, background .2s, border-color .2s, color .2s; flex:1 1 auto; }
+  button.btn:active{ transform:translateY(1px) } button.btn:disabled{ opacity:.32; cursor:not-allowed }
+  .btn.primary{ background:transparent; border-color:var(--line); color:var(--ink); } .btn.primary:hover:not(:disabled){ border-color:var(--dim) }
+  .btn.bot{ background:var(--amber); color:#1a1206; font-weight:700; } .btn.bot:hover:not(:disabled){ background:#ffc06e }
+  .btn.ghost{ flex:0 0 auto; background:transparent; border-color:var(--line-soft); color:var(--dim); } .btn.ghost:hover:not(:disabled){ color:var(--ink); border-color:var(--dim) }
+  :focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+  .foot{ margin-top:18px; padding-top:14px; border-top:1px solid var(--line-soft); font-size:10.5px; color:var(--faint); line-height:1.7; letter-spacing:.03em; }
+  .foot code{ color:var(--dim); background:#0c1119; padding:1px 6px; border-radius:4px; border:1px solid var(--line-soft); }
+  .receipt{ margin-top:10px; }
+  .receipt .rrow{ display:flex; justify-content:space-between; gap:10px; font-size:11px; padding:4px 0; border-bottom:1px solid var(--line-soft); color:var(--dim); }
+  .receipt .rrow b{ color:var(--mint); font-weight:400; font-variant-numeric:tabular-nums }
+
+  /* mode toggle */
+  .modebar{ display:flex; gap:6px; margin:16px 0 2px; padding:4px; border:1px solid var(--line-soft); border-radius:10px; background:#0a0e15; }
+  .seg{ flex:1; font-family:var(--mono); font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--dim); background:transparent; border:1px solid transparent; border-radius:7px; padding:9px 8px; cursor:pointer; transition:color .2s, background .2s, border-color .2s; }
+  .seg .s2{ display:block; font-size:9px; letter-spacing:.16em; color:var(--faint); margin-top:3px; }
+  .seg:hover{ color:var(--ink) }
+  .seg.on[data-m="machine"]{ color:#1a1206; background:var(--amber); border-color:var(--amber); } .seg.on[data-m="machine"] .s2{ color:#5a3d12 }
+  .seg.on[data-m="human"]{ color:#1f0f0a; background:var(--human); border-color:var(--human); } .seg.on[data-m="human"] .s2{ color:#6b3522 }
+
+  /* drag-path (organic motion) */
+  .lane{ position:relative; height:96px; margin-top:12px; border:1px solid var(--line); border-radius:10px; background:repeating-linear-gradient(90deg,transparent 0 14px,rgba(255,255,255,.015) 14px 15px),#0c1119; overflow:hidden; touch-action:none; }
+  .dock{ position:absolute; top:50%; right:10px; transform:translateY(-50%); width:64px; height:64px; border:1px dashed var(--human); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:9px; letter-spacing:.1em; color:var(--human); text-align:center; line-height:1.4; }
+  .knob{ position:absolute; top:50%; left:10px; transform:translateY(-50%); width:48px; height:48px; border-radius:12px; background:var(--human); box-shadow:0 0 30px -6px var(--human); cursor:grab; touch-action:none; display:flex; align-items:center; justify-content:center; color:#1f0f0a; font-size:17px; user-select:none; }
+  .knob:active{ cursor:grabbing }
+
+  /* perception canvas + options */
+  .canvasbox{ margin-top:12px; border:1px solid var(--line); border-radius:10px; background:#0c1119; padding:8px; display:flex; justify-content:center; }
+  .canvasbox canvas{ width:100%; max-width:420px; height:auto; border-radius:6px; display:block; }
+  .opts{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  .opt{ flex:1 1 auto; min-width:52px; font-family:var(--mono); font-size:16px; color:var(--ink); background:#0c1119; border:1px solid var(--line); border-radius:8px; padding:12px 0; cursor:pointer; transition:border-color .15s, color .15s; font-variant-numeric:tabular-nums; }
+  .opt:hover{ border-color:var(--human); color:var(--human) }
+  .opt.wrong{ border-color:var(--red); color:var(--red) } .opt.right{ border-color:var(--mint); color:var(--mint) }
+
+  /* human-mode primary button + warm skin */
+  .btn.human-primary{ background:var(--human); border-color:var(--human); color:#1f0f0a; font-weight:700; }
+  .btn.human-primary:hover:not(:disabled){ background:#ffa888 }
+  body.humanmode{ background:radial-gradient(1200px 800px at 50% -12%, #1d1714 0%, #0b0908 62%), #0b0908; }
+  body.humanmode .device{ border-color:#3a2c25; }
+  body.humanmode .device::after{ background:linear-gradient(90deg,transparent,var(--human-glow),transparent); }
+  body.humanmode .head{ background:#15110e; border-bottom-color:#241b16; }
+  body.humanmode .meter .num{ font-size:34px; letter-spacing:.02em; }
+
+  /* single-step bot button */
+  .stepbot{ display:block; width:100%; margin-top:14px; font-size:11px; letter-spacing:.06em; }
+  /* secret / password reveal */
+  .secret{ margin-top:6px; font-size:20px; letter-spacing:.1em; color:var(--mint); background:#0d1320; border:1px solid rgba(84,231,192,.4); border-radius:8px; padding:13px 14px; user-select:all; word-break:break-all; text-align:center; box-shadow:0 0 40px -20px var(--mint); }
+  /* trace (mouse trajectory) */
+  .trace{ position:relative; height:120px; margin-top:12px; border:1px solid var(--line); border-radius:10px; background:repeating-linear-gradient(90deg,transparent 0 16px,rgba(255,255,255,.012) 16px 17px),#0c1119; overflow:hidden; touch-action:none; cursor:crosshair; }
+  .wp{ position:absolute; width:24px; height:24px; margin:-12px 0 0 -12px; border-radius:50%; border:2px solid var(--human); background:rgba(255,146,112,.15); transition:background .12s, border-color .12s, box-shadow .12s; }
+  .wp.hit{ background:var(--mint); border-color:var(--mint); box-shadow:0 0 12px var(--mint); }
+  /* odd-one-out tiles */
+  .oddrow{ display:flex; gap:8px; margin-top:12px; justify-content:center; flex-wrap:wrap; }
+  .oddcv{ width:58px; height:58px; border:1px solid var(--line); border-radius:8px; cursor:pointer; background:#0c1119; transition:border-color .15s, transform .08s; }
+  .oddcv:hover{ border-color:var(--human) } .oddcv:active{ transform:scale(.95) }
+  .oddcv.rightc{ border-color:var(--mint); box-shadow:0 0 12px -2px var(--mint) } .oddcv.wrongc{ border-color:var(--red) }
+
+  /* telemetry breakdown (per-step signal readout) */
+  .telem{ display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; margin-top:11px; padding-top:10px; border-top:1px dashed var(--line-soft); }
+  .telem .tlabel{ font-size:8.5px; letter-spacing:.18em; color:var(--faint); text-transform:uppercase; }
+  .telem .tcell{ font-size:10px; letter-spacing:.03em; color:var(--dim); background:#0c1119; border:1px solid var(--line-soft); border-radius:5px; padding:3px 7px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .telem.bad .tcell{ color:var(--red); border-color:rgba(255,93,108,.3) }
+  .rdetail{ font-size:9.5px; color:var(--faint); letter-spacing:.03em; padding:3px 0 7px; border-bottom:1px solid var(--line-soft); }
+
+  /* slider-fit (trajectory + visual gap) */
+  .slane{ position:relative; height:60px; margin-top:12px; border:1px solid var(--line); border-radius:10px; background:repeating-linear-gradient(90deg,transparent 0 14px,rgba(255,255,255,.015) 14px 15px),#0c1119; overflow:hidden; touch-action:none; }
+  .sgap{ position:absolute; top:50%; transform:translateY(-50%); width:48px; height:48px; border:1px dashed var(--human); border-radius:9px; background:rgba(255,146,112,.06); }
+  .sknob{ position:absolute; top:50%; left:6px; transform:translateY(-50%); width:46px; height:46px; border-radius:10px; background:var(--human); box-shadow:0 0 26px -8px var(--human); cursor:grab; touch-action:none; display:flex; align-items:center; justify-content:center; color:#1f0f0a; font-size:18px; user-select:none; }
+  .sknob:active{ cursor:grabbing }
+
+  /* tracking box (continuous cursor follow) */
+  .tbox{ position:relative; height:150px; margin-top:12px; border:1px solid var(--line); border-radius:10px; background:radial-gradient(circle at 50% 50%,rgba(255,146,112,.05),transparent 70%),#0c1119; overflow:hidden; touch-action:none; cursor:crosshair; }
+  .tdot{ position:absolute; width:32px; height:32px; margin:-16px 0 0 -16px; border-radius:50%; background:var(--human); box-shadow:0 0 16px -2px var(--human); transition:background .1s, box-shadow .1s; }
+  .tdot.on{ background:var(--mint); box-shadow:0 0 18px var(--mint); }
+
+  @media (max-width:480px){
+    .body{ padding:20px 16px 18px } .title h1{ font-size:25px } .meter .num{ font-size:36px }
+    .step{ grid-template-columns:26px 1fr auto; gap:9px } button.btn{ flex:1 1 100% }
+  }
+  @media (prefers-reduced-motion:reduce){ .device::after{ animation:none } .dot{ animation:none } .card{ animation:none } .bar.marquee > i{ animation:none } }
+</style>
+</head>
+<body>
+  <main class="device" role="application" aria-label="机器人身份验证">
+    <div class="head">
+      <div class="id"><span class="dot" id="dot"></span><span id="brand">Reverse Turing Gate</span></div>
+      <div class="ver" id="ver">PROTO / 0xB07 · 8 TRIALS</div>
+    </div>
+
+    <div class="body">
+      <div class="title">
+        <h1>人机验证</h1>
+        <div class="en">Human Verification Gateway</div>
+        <div class="tag">八道挑战,全部须以机器速度通过 —— 任一项暴露人类特征即拒绝。
+          <span class="sub">8 TRIALS · NO HUMANS BEYOND THIS POINT</span>
+        </div>
+      </div>
+
+      <div class="modebar" id="modebar" role="tablist" aria-label="验证模式">
+        <button class="seg on" data-m="machine" id="segM" role="tab" aria-selected="true">仅限机器人<span class="s2">MACHINES ONLY</span></button>
+        <button class="seg" data-m="human" id="segH" role="tab" aria-selected="false">仅限人类<span class="s2">HUMANS ONLY</span></button>
+      </div>
+
+      <div class="meter idle" id="meter">
+        <div class="row1">
+          <span class="label" id="mlabel">就绪 · READY</span>
+          <span class="status" id="status">待机 · IDLE</span>
+        </div>
+        <div class="read"><span class="num" id="num">00000000</span><span class="unit" id="unit"></span></div>
+        <div class="thresh" id="thresh">机器活在微秒与纳秒里,人类活在百毫秒里。这条物理鸿沟无法跨越。</div>
+      </div>
+
+      <div class="track" id="track"></div>
+      <div class="stage" id="stage" aria-live="polite"></div>
+
+      <div class="controls">
+        <button class="btn primary" id="begin">▷ 以人类身份尝试</button>
+        <button class="btn bot" id="bot">▶ 运行机器人脚本</button>
+        <button class="btn ghost" id="reset" hidden>重置</button>
+      </div>
+    </div>
+  </main>
+
+<script>
+"use strict";
+/* ===================== fast SHA-256 (verified vs node crypto) ===================== */
+const _K=new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+const _W=new Uint32Array(64);
+function sha256(str){
+  const bytes=unescape(encodeURIComponent(str)), n=bytes.length;
+  const total=(((n+1)+8+63)>>6)*64, buf=new Uint8Array(total);
+  for(let i=0;i<n;i++) buf[i]=bytes.charCodeAt(i);
+  buf[n]=0x80; const bl=n*8;
+  buf[total-4]=(bl>>>24)&255; buf[total-3]=(bl>>>16)&255; buf[total-2]=(bl>>>8)&255; buf[total-1]=bl&255;
+  let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a,h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;
+  const W=_W,K=_K;
+  for(let b=0;b<total;b+=64){
+    for(let i=0;i<16;i++){ const j=b+i*4; W[i]=(buf[j]<<24)|(buf[j+1]<<16)|(buf[j+2]<<8)|buf[j+3]; }
+    for(let i=16;i<64;i++){ const x=W[i-15],y=W[i-2];
+      const s0=((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3);
+      const s1=((y>>>17)|(y<<15))^((y>>>19)|(y<<13))^(y>>>10);
+      W[i]=(W[i-16]+s0+W[i-7]+s1)|0; }
+    let a=h0,b2=h1,c=h2,d=h3,e=h4,f=h5,g=h6,h=h7;
+    for(let i=0;i<64;i++){
+      const S1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7));
+      const t1=(h+S1+((e&f)^((~e)&g))+K[i]+W[i])|0;
+      const S0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10));
+      const t2=(S0+((a&b2)^(a&c)^(b2&c)))|0;
+      h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b2;b2=a;a=(t1+t2)|0;
+    }
+    h0=(h0+a)|0;h1=(h1+b2)|0;h2=(h2+c)|0;h3=(h3+d)|0;h4=(h4+e)|0;h5=(h5+f)|0;h6=(h6+g)|0;h7=(h7+h)|0;
+  }
+  const hs=[h0,h1,h2,h3,h4,h5,h6,h7]; let o='';
+  for(let i=0;i<8;i++) o+=(hs[i]>>>0).toString(16).padStart(8,'0');
+  return o;
+}
+function leadingZeroBits(hx){ let bits=0; for(let i=0;i<hx.length;i++){ const v=parseInt(hx[i],16); if(v===0){bits+=4;continue;} if(v<2)bits+=3;else if(v<4)bits+=2;else if(v<8)bits+=1; break; } return bits; }
+
+/* ===================== helpers ===================== */
+const $=s=>document.querySelector(s);
+const now=()=>performance.now();
+const rnd=n=>{ let s='',c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; for(let i=0;i<n;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; };
+const hex=n=>{ let s='',c='0123456789abcdef'; for(let i=0;i<n;i++) s+=c[Math.floor(Math.random()*16)]; return s; };
+const comma=v=>Math.round(v).toLocaleString('en-US');
+const us=ms=>comma(Math.max(0,ms*1000));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+const meter=$('#meter'),numEl=$('#num'),unitEl=$('#unit'),statusEl=$('#status'),mlabel=$('#mlabel'),threshEl=$('#thresh');
+const stage=$('#stage'),trackEl=$('#track'),dot=$('#dot');
+const beginBtn=$('#begin'),botBtn=$('#bot'),resetBtn=$('#reset');
+const segM=$('#segM'),segH=$('#segH');
+
+/* ===================== catalogues ===================== */
+const CH=[
+  {id:'reflex',     name:'微秒级反应',  en:'Microsecond reflex',        desc:'信号亮起后 1,000 µs 内响应', label:'响应延迟 · LATENCY'},
+  {id:'rhythm',     name:'亚毫秒节奏',  en:'Sub-ms timing',             desc:'8 拍,抖动 σ ≤ 4 ms',        label:'节奏抖动 · JITTER σ'},
+  {id:'throughput', name:'高频吞吐',    en:'High-frequency throughput', desc:'1 秒内提交 60 个轮换码',      label:'吞吐量 · THROUGHPUT'},
+  {id:'recall',     name:'瞬时完美记忆',en:'Perfect instant recall',    desc:'闪现 256 位后精确复述',      label:'回忆准确 · RECALL'},
+  {id:'base64',     name:'Base64 解码', en:'Base64 decode',             desc:'瞬时解码 Base64',            label:'解码耗时 · DECODE'},
+  {id:'fingerprint',name:'密码学指纹',  en:'Cryptographic fingerprint', desc:'瞬时提交 SHA-256',           label:'计算耗时 · HASH'},
+  {id:'ieee',       name:'位级编码',    en:'IEEE-754 bit pattern',      desc:'给出浮点数的 64 位表示',     label:'编码耗时 · ENCODE'},
+  {id:'median',     name:'海量排序',    en:'Sort & median',             desc:'对 201 个数求中位数',        label:'排序耗时 · SORT'},
+  {id:'compute',    name:'程序化运算',  en:'Programmatic compute',      desc:'对 25 万项求和取模',         label:'运算耗时 · COMPUTE'},
+  {id:'popcount',   name:'位计数',      en:'Bit population count',      desc:'数清 64 位里的 1',           label:'计数耗时 · POPCOUNT'},
+  {id:'modpow',     name:'模幂运算',    en:'Modular exponentiation',    desc:'求 aᵇ mod m 的精确值',       label:'求幂耗时 · MODPOW'},
+  {id:'factor',     name:'质因数分解',  en:'Integer factorization',     desc:'拆开半素数 n = p×q',         label:'分解耗时 · FACTOR'},
+  {id:'pow',        name:'工作量证明',  en:'Proof-of-work mining',      desc:'挖出 17 个前导零比特',       label:'累计哈希 · HASHES'}
+];
+const CH_HUMAN=[
+  {id:'hreflex', name:'轻轻点一下', en:'A quick tap',    desc:'亮起后像平常一样点一下', label:'反应'},
+  {id:'htrace',  name:'划一条线',   en:'Trace the line', desc:'沿着线经过几个亮点',     label:'轨迹'},
+  {id:'hpath',   name:'拖一拖',     en:'Drag it over',   desc:'把方块拖进框里',         label:'拖动'},
+  {id:'hrhythm', name:'跟着节奏',   en:'Tap along',      desc:'跟着拍子敲 5 下',        label:'节奏'},
+  {id:'hodd',    name:'找不同',     en:'Spot the odd',   desc:'选出不一样的那个',       label:'识别'},
+  {id:'hsee',    name:'数一数',     en:'Count them',     desc:'数出画面里的圆点',       label:'识图'},
+  {id:'hslide',  name:'对齐滑块',   en:'Slide to fit',   desc:'把滑块拖到缺口处对齐',   label:'拼合'},
+  {id:'htrack',  name:'跟住目标',   en:'Track the dot',  desc:'让光标跟着移动的点',     label:'跟踪'},
+  {id:'hshape',  name:'认图形',     en:'Name the shape', desc:'说出画面里画的是什么',   label:'识形'}
+];
+let MODE='human';
+const CAT=()=>MODE==='machine'?CH:CH_HUMAN;
+
+let idx=-1, botMode=false, soloBot=false, results=[], stepEls=[], aborted=false, gen=0;
+
+const dispatch={
+  reflex:runReflex, rhythm:runRhythm, throughput:runThroughput, recall:runRecall, base64:runBase64,
+  fingerprint:runFingerprint, ieee:runIeee, median:runMedian, compute:runCompute,
+  popcount:runPopcount, modpow:runModpow, factor:runFactor, pow:runPow,
+  hreflex:runHReflex, htrace:runHTrace, hpath:runHPath, hrhythm:runHRhythm, hodd:runHOdd, hsee:runHSee,
+  hslide:runHSlide, htrack:runHTrack, hshape:runHShape
+};
+
+/* ===================== track + meter ===================== */
+function buildTrack(){
+  trackEl.innerHTML='';
+  stepEls=CAT().map((c,i)=>{
+    const el=document.createElement('div'); el.className='step'; el.dataset.s='pending';
+    el.innerHTML=`<div class="ix">${String(i+1).padStart(2,'0')}</div>
+      <div class="meta"><div class="name">${c.name}</div><div class="desc">${c.en} · ${c.desc}</div></div>
+      <div class="state">待运行</div>`;
+    trackEl.appendChild(el); return el;
+  });
+}
+const setStep=(i,s,w)=>{ if(stepEls[i]){ stepEls[i].dataset.s=s; stepEls[i].querySelector('.state').textContent=w; } };
+const setMeter=(cls,status,label,thresh)=>{ meter.className='meter '+cls; statusEl.textContent=status; if(label!==undefined) mlabel.textContent=label; if(thresh!==undefined) threshEl.innerHTML=thresh; };
+const setRead=(val,unit)=>{ numEl.textContent=val; unitEl.textContent=unit||''; };
+
+/* ===================== flow ===================== */
+function reset(){
+  idx=-1; botMode=false; soloBot=false; results=[]; aborted=true; gen++;
+  stage.innerHTML='';
+  const human=MODE==='human';
+  setMeter('idle','待开始 · READY', human?'真人验证':'就绪 · READY', human
+    ? '放轻松,跟着提示做几个小动作就好,几秒就能过。'
+    : '机器活在微秒与纳秒里,人类活在百毫秒里。这条物理鸿沟无法跨越。');
+  setRead(human?'你好':'00000000','');
+  buildTrack();
+  beginBtn.disabled=false; botBtn.disabled=false; resetBtn.hidden=true;
+  const accent=human?'var(--human)':'var(--amber)';
+  dot.style.background=accent; dot.style.boxShadow='0 0 10px '+accent;
+}
+const lock=()=>{ beginBtn.disabled=true; botBtn.disabled=true; };
+
+function finishPass(){
+  resetBtn.hidden=false;
+  const human=MODE==='human', n=CAT().length;
+  dot.style.background='var(--mint)'; dot.style.boxShadow='0 0 10px var(--mint)';
+  const rows=results.map(r=>`<div class="rrow"><span>${r.name}</span><b>${r.value} ${r.unit}</b></div>${r.detail?`<div class="rdetail">${(Array.isArray(r.detail)?r.detail:[r.detail]).join(' · ')}</div>`:''}`).join('');
+  if(human){
+    setMeter('pass','欢迎你 · WELCOME','真人验证 ✓','全部完成,谢谢配合 :)');
+    setRead('真人 ✓','');
+    let left=3;
+    stage.innerHTML=`<div class="card" style="border-color:rgba(84,231,192,.4)">
+      <div class="q" style="color:var(--mint);font-size:14px;letter-spacing:.04em">✓ 通过了,你是真人</div>
+      <div class="q" style="margin:8px 0 4px">口令 · PASSPHRASE</div>
+      <div class="secret">xztx226</div>
+      <div class="receipt">${rows}</div>
+      <div class="hint" id="ret" style="text-align:center">3 秒后返回首页…</div></div>`;
+    const t=setInterval(()=>{ if(aborted){ clearInterval(t); return; } left--; const r=$('#ret'); if(r) r.textContent=left+' 秒后返回首页…'; if(left<=0){ clearInterval(t); reset(); } },1000);
+  } else {
+    const pw=rnd(3).toLowerCase()+(Math.floor(Math.random()*90)+10)+'-xztx127-'+rnd(4).toLowerCase()+(Math.floor(Math.random()*900)+100);
+    setMeter('pass','已验证 · MACHINE','身份 · IDENTITY','<b>验证通过 ACCESS GRANTED</b> · '+n+' / '+n+' trials cleared');
+    setRead('VERIFIED','');
+    stage.innerHTML=`<div class="card" style="border-color:rgba(84,231,192,.4)">
+      <div class="q" style="color:var(--mint);font-size:14px;letter-spacing:.04em">✓ 验证通过 · 欢迎,机器人</div>
+      <div class="q" style="margin:8px 0 4px">门后的口令(随机生成,可复制)</div>
+      <div class="secret" id="secret">${pw}</div>
+      <div class="receipt">${rows}</div></div>`;
+  }
+}
+function fmtDetail(detail,bad){
+  if(!detail) return '';
+  const items=Array.isArray(detail)?detail:[detail];
+  if(!items.length) return '';
+  return `<div class="telem${bad?' bad':''}"><span class="tlabel">遥测 · TELEMETRY</span>${items.map(t=>`<span class="tcell">${t}</span>`).join('')}</div>`;
+}
+function fail(reasonCN,reasonEN,shown,detail){
+  const human=MODE==='human';
+  if(shown!==undefined) setRead(shown,'');
+  setMeter('fail','未通过 · ', human?'再试一次 · TRY AGAIN':'检测到人类 · HUMAN','<b style="color:var(--red)">'+reasonCN+'</b>');
+  setStep(idx,'fail','失败'); resetBtn.hidden=false;
+  dot.style.background='var(--red)'; dot.style.boxShadow='0 0 10px var(--red)';
+  const head=human?'没通过,再试一次?':'✕ 检测到人类 · HUMAN DETECTED';
+  const en=reasonEN?`<br><span style="color:var(--faint)">${reasonEN}</span>`:'';
+  stage.innerHTML=`<div class="card" style="border-color:rgba(255,93,108,.4)">
+    <div class="q" style="color:var(--red);font-size:13.5px;letter-spacing:.03em">${head}</div>
+    <div class="q" style="margin-top:6px">${reasonCN}${en}</div>${fmtDetail(detail,true)}</div>`;
+}
+function pass(name,val,unit,detail){
+  results.push({name,value:val,unit,detail});
+  setRead(val,unit); setMeter('pass','通过 · PASS');
+  setStep(idx,'pass','通过');
+  const card=stage.querySelector('.card'); if(card && detail) card.insertAdjacentHTML('beforeend', fmtDetail(detail,false));
+  setTimeout(next, botMode?460:780);
+}
+
+function start(asBot){ botMode=asBot; soloBot=false; results=[]; idx=-1; aborted=false; lock(); next(); }
+function next(){ if(aborted) return; idx++; if(idx>=CAT().length){ finishPass(); return; } renderCurrent(); }
+function renderCurrent(){
+  if(aborted) return;
+  gen++;
+  const c=CAT()[idx];
+  const showStep = !botMode && !soloBot;
+  setStep(idx,'active','测量中');
+  setMeter('active','测量中 · MEASURING',c.label,'');
+  setRead('— — —','');
+  dispatch[c.id]();
+  if(showStep) appendStepBot();
+  soloBot=false;
+}
+function appendStepBot(){
+  const card=stage.querySelector('.card'); if(!card) return;
+  const b=document.createElement('button'); b.className='btn ghost stepbot'; b.type='button';
+  b.textContent = MODE==='human' ? '🤖 让机器人替我做这一步(会暴露)' : '🤖 这一步交给机器人';
+  b.addEventListener('click',()=>{ soloBot=true; renderCurrent(); });
+  card.appendChild(b);
+}
+
+/* ===================== mode ===================== */
+function setMode(m){
+  MODE=m;
+  segM.classList.toggle('on', m==='machine'); segM.setAttribute('aria-selected', m==='machine');
+  segH.classList.toggle('on', m==='human');   segH.setAttribute('aria-selected', m==='human');
+  const human=m==='human';
+  document.body.classList.toggle('humanmode', human);
+  $('#brand').textContent = human ? '真人验证' : 'Reverse Turing Gate';
+  document.querySelector('.title h1').textContent = human ? '请证明你是真人' : '人机验证';
+  document.querySelector('.title .en').textContent = human ? 'Quick human check' : 'Human Verification Gateway';
+  document.querySelector('.title .tag').innerHTML = human
+    ? '只要跟着提示做几个小动作就行,放轻松。<span class="sub">每一步都能让机器人代劳一次试试</span>'
+    : '十三道挑战,全部须以机器速度通过 —— 通关后给你门后的口令。<span class="sub">13 TRIALS · MACHINES ONLY</span>';
+  $('#ver').textContent = human ? '真人通道 · 9 关' : 'PROTO / 0xB07 · 13 TRIALS';
+  beginBtn.textContent = human ? '开始' : '▷ 以人类身份尝试';
+  botBtn.textContent   = human ? '让机器人试试(会失败)' : '▶ 运行机器人脚本';
+  beginBtn.className = human ? 'btn human-primary' : 'btn primary';
+  botBtn.className   = human ? 'btn ghost' : 'btn bot';
+  reset();
+}
+
+/* ===================== machine trials ===================== */
+/* 01 reflex */
+function runReflex(){
+  const myGen=gen, auto=botMode||soloBot;
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器阈值 ≤ 1,000 µs</b> · 人类下限 ≈ 200,000 µs');
+  stage.innerHTML=`<div class="card"><div class="q">信号亮起的瞬间响应。</div>
+    <div class="pad" id="pad" role="button" tabindex="0">等待信号… · STAND BY</div></div>`;
+  const pad=$('#pad'); let live=false,done=false,armedAt=0;
+  const respond=()=>{ if(done||aborted||gen!==myGen)return;
+    if(!live){ done=true; clean(); fail('信号前响应 · 人类预判模式(机器不会抢跑)。','Response before signal — human anticipation.','— — —',['抢跑 是','信号前响应']); return; }
+    done=true; const lat=now()-armedAt; clean();
+    if(lat*1000<=1000) pass('微秒反应',us(lat),'µs',['延迟 '+us(lat)+' µs','阈值 1,000 µs','抢跑 否']);
+    else fail('响应延迟 '+us(lat)+' µs 超过机器阈值 1,000 µs。','Latency '+us(lat)+' µs exceeds 1,000 µs.',us(lat),['延迟 '+us(lat)+' µs','阈值 1,000 µs','超出 '+us(lat-1)+' µs']); };
+  const onKey=e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); respond(); } };
+  function clean(){ pad.removeEventListener('mousedown',respond); pad.removeEventListener('touchstart',respond); pad.removeEventListener('keydown',onKey); }
+  pad.addEventListener('mousedown',respond); pad.addEventListener('touchstart',respond,{passive:true}); pad.addEventListener('keydown',onKey);
+  setTimeout(()=>{ if(done||aborted||gen!==myGen)return; live=true; armedAt=now(); pad.classList.add('live'); pad.textContent='立即响应 · RESPOND';
+    if(auto) respond(); }, 600+Math.random()*900);
+}
+/* 02 rhythm */
+function runRhythm(){
+  const myGen=gen, auto=botMode||soloBot;
+  const N=8, iv=480, maxAbs=8, sdMax=4;
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器: σ ≤ 4 ms 且偏移 ≤ 8 ms</b> · 人类 σ ≈ 20–60 ms');
+  stage.innerHTML=`<div class="card"><div class="q">节拍器每 ${iv} ms 一拍,共 ${N} 拍,亮起的瞬间敲击。</div>
+    <div class="beats" id="beats">${Array.from({length:N},()=>'<span></span>').join('')}</div>
+    <div class="pad" id="pad" role="button" tabindex="0">敲击 · TAP ON BEAT</div></div>`;
+  const dots=[...$('#beats').children], pad=$('#pad');
+  const start=now()+700, beatT=Array.from({length:N},(_,k)=>start+k*iv);
+  const offs=new Array(N).fill(null); let finished=false;
+  const tap=()=>{ if(finished||aborted||gen!==myGen)return; const t=now(); let bi=0,best=Infinity; for(let i=0;i<N;i++){ const d=Math.abs(t-beatT[i]); if(offs[i]===null&&d<best){best=d;bi=i;} } if(offs[bi]!==null)return; offs[bi]=t-beatT[bi]; dots[bi].classList.remove('now'); dots[bi].classList.add(Math.abs(offs[bi])<=maxAbs?'hit':'miss'); };
+  const onKey=e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); tap(); } };
+  pad.addEventListener('mousedown',tap); pad.addEventListener('touchstart',tap,{passive:true}); pad.addEventListener('keydown',onKey);
+  beatT.forEach((bt,i)=>{ setTimeout(()=>{ if(aborted||gen!==myGen)return; dots[i].classList.add('now'); setTimeout(()=>dots[i].classList.remove('now'),140); }, Math.max(0,bt-now())); });
+  if(auto){ beatT.forEach(bt=>{ setTimeout(()=>{ if(aborted||gen!==myGen)return; while(now()<bt){} tap(); }, Math.max(0,bt-now()-12)); }); }
+  setTimeout(()=>{ if(aborted||gen!==myGen)return; finished=true; pad.removeEventListener('mousedown',tap); pad.removeEventListener('keydown',onKey);
+    if(offs.some(o=>o===null)){ fail('节拍缺失 · 未能在每一拍上稳定响应。','Missed beats.','MISS',['缺拍 '+offs.filter(o=>o===null).length+' / '+N]); return; }
+    const mean=offs.reduce((a,b)=>a+b,0)/N, sd=Math.sqrt(offs.reduce((a,b)=>a+(b-mean)*(b-mean),0)/N), mx=Math.max(...offs.map(Math.abs));
+    if(sd<=sdMax && mx<=maxAbs) pass('节奏抖动 σ',us(sd),'µs',['σ '+us(sd)+' µs','最大偏移 '+us(mx)+' µs','缺拍 0 / '+N]);
+    else fail('节奏抖动 σ='+us(sd)+' µs 超出机器容差 · 人类手部颤动。','Jitter σ='+us(sd)+' µs — human tremor.',us(sd),['σ '+us(sd)+' µs','最大偏移 '+us(mx)+' µs','容差 σ ≤ 4 ms']); }, (start-now())+N*iv+400);
+}
+/* 03 throughput */
+function runThroughput(){
+  const myGen=gen, auto=botMode||soloBot;
+  const TARGET=60, WIN=1000;
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器: 1 秒内 ≥ 60 次</b> · 人类 ≈ 1–3 次/秒');
+  stage.innerHTML=`<div class="card"><div class="q">输入下方验证码并回车,正确即刷新。须在 1 秒内连续提交 ${TARGET} 个。</div>
+    <div class="data" id="code"></div>
+    <div class="inrow"><input id="tin" placeholder="echo →" autocomplete="off" spellcheck="false"></div>
+    <div class="bar"><i id="tbar"></i></div></div>`;
+  const codeEl=$('#code'), inp=$('#tin'), bar=$('#tbar');
+  let cur=rnd(5), count=0, t0=0, done=false; codeEl.textContent=cur;
+  const tick=()=>{ if(done||aborted||gen!==myGen)return; const el=now()-t0; bar.style.width=Math.min(100,el/WIN*100)+'%';
+    if(el>=WIN){ done=true; if(count<TARGET) fail('吞吐量 '+count+'/'+TARGET+' · 1 秒内无法提交 60 个码。','Throughput '+count+'/'+TARGET+'.',count+' / '+TARGET); return; }
+    requestAnimationFrame(tick); };
+  const submit=v=>{ if(done||aborted||gen!==myGen)return; if(v!==cur)return;
+    if(count===0){ t0=now(); requestAnimationFrame(tick); }
+    count++; setRead(count,'/ '+TARGET);
+    if(count>=TARGET){ done=true; const el=Math.max(0.001,(now()-t0)/1000); pass('吞吐量',comma(count/el),'Hz',['提交 '+count+' 个','耗时 '+Math.round(el*1000)+' ms','速率 '+comma(count/el)+' Hz']); return; }
+    cur=rnd(5); codeEl.textContent=cur; inp.value=''; };
+  inp.addEventListener('input',()=>{ if(inp.value.length>=cur.length) submit(inp.value.trim().toUpperCase()); });
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(inp.value.trim().toUpperCase()); });
+  if(auto){ setTimeout(()=>{ if(aborted||gen!==myGen)return; while(!done && count<TARGET){ submit(cur); } },80); } else inp.focus();
+}
+/* 04 recall */
+function runRecall(){
+  const myGen=gen, auto=botMode||soloBot;
+  const LEN=256, FLASH=90, LIMIT=4000, secret=hex(LEN);
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器: 90 ms 内捕获 256 位并精确复述</b> · 人类无法记忆');
+  stage.innerHTML=`<div class="card"><div class="q">下面 256 位十六进制只闪现 ${FLASH} ms,随后消失,请精确复述。</div>
+    <div class="data flash" id="flash">${secret}</div>
+    <div class="hint" id="rh">捕获中…</div></div>`;
+  const flashEl=$('#flash');
+  setTimeout(()=>{ if(aborted||gen!==myGen)return;
+    flashEl.remove();
+    const card=stage.querySelector('.card');
+    const wrap=document.createElement('div');
+    wrap.innerHTML=`<div class="inrow"><input id="rin" placeholder="复述 256 位…" autocomplete="off" spellcheck="false"></div><div class="bar"><i id="rbar"></i></div>`;
+    card.insertBefore(wrap, $('#rh'));
+    $('#rh').textContent='已从 DOM 移除 · 机器应已捕获';
+    const inp=$('#rin'), bar=$('#rbar'); const t0=now(); let done=false;
+    const tick=()=>{ if(done||aborted||gen!==myGen)return; const el=now()-t0; bar.style.width=Math.min(100,el/LIMIT*100)+'%';
+      if(el>=LIMIT){ done=true; fail('记忆超时 · 人类无法在闪现中记下 256 位。','Recall timeout.','TIMEOUT'); return; } requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+    const submit=()=>{ if(done||aborted||gen!==myGen)return; if(inp.value.trim().toLowerCase()!==secret){ done=true; fail('复述不符 · 机器以微秒级捕获,人类记忆无法企及。','Recall mismatch.','MISMATCH'); return; } done=true; pass('完美记忆','100','%',['位宽 '+LEN+' bit','闪现 '+FLASH+' ms','匹配 100%']); };
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+    if(auto){ inp.value=secret; setTimeout(submit,120); } else inp.focus();
+  }, FLASH);
+}
+/* 05 base64 */
+function runBase64(){
+  const myGen=gen, auto=botMode||soloBot;
+  const tok=rnd(14), enc=btoa(tok), t0=now();
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器阈值 ≤ 2,000 ms</b> · 人类无法心算 Base64');
+  stage.innerHTML=`<div class="card"><div class="q">解码下面这段 Base64,提交原文。</div>
+    <div class="data" id="b64">${enc}</div>
+    <div class="inrow"><input id="bin" placeholder="decode(…) = …" autocomplete="off" spellcheck="false"></div></div>`;
+  const inp=$('#bin');
+  const submit=()=>{ if(aborted||gen!==myGen)return; const dt=now()-t0;
+    if(inp.value.trim()!==tok){ fail('解码错误 · 机器可瞬时 Base64 解码。','Wrong — machines decode instantly.','WRONG'); return; }
+    if(dt>2000){ fail('正确但耗时 '+Math.round(dt)+' ms 超过 2,000 ms。','Too slow.',Math.round(dt)+' ms'); return; }
+    pass('Base64',Math.round(dt),'ms',['原文 '+tok.length+' 字符','耗时 '+Math.round(dt)+' ms','正确 ✓']); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+  if(auto){ inp.value=atob(enc); setTimeout(submit,60); } else inp.focus();
+}
+/* 06 fingerprint */
+function runFingerprint(){
+  const myGen=gen, auto=botMode||soloBot;
+  const nonce=rnd(18), expected=sha256(nonce), t0=now();
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器阈值 ≤ 2,000 ms</b> · 人类无法心算 SHA-256');
+  stage.innerHTML=`<div class="card"><div class="q">提交下串的 SHA-256(小写十六进制)。</div>
+    <div class="data" id="n">${nonce}</div>
+    <div class="inrow"><input id="hin" placeholder="sha256(nonce) = …" autocomplete="off" spellcheck="false"></div></div>`;
+  const inp=$('#hin');
+  const submit=()=>{ if(aborted||gen!==myGen)return; const v=inp.value.trim().toLowerCase(), dt=now()-t0;
+    if(v!==expected){ fail('指纹不匹配 · 机器可瞬时计算 SHA-256。','Fingerprint mismatch.','MISMATCH'); return; }
+    if(dt>2000){ fail('指纹正确但耗时 '+Math.round(dt)+' ms 超过 2,000 ms。','Too slow.',Math.round(dt)+' ms'); return; }
+    pass('SHA-256',Math.round(dt),'ms',['摘要 256 bit','耗时 '+Math.round(dt)+' ms','匹配 ✓']); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+  if(auto){ inp.value=expected; setTimeout(submit,60); } else inp.focus();
+}
+/* 07 ieee */
+function runIeee(){
+  const myGen=gen, auto=botMode||soloBot;
+  const x=parseFloat(((Math.random()*2-1)*Math.pow(10,Math.floor(Math.random()*7)-3)).toPrecision(15));
+  const dv=new DataView(new ArrayBuffer(8)); dv.setFloat64(0,x,false);
+  let expected=''; for(let i=0;i<8;i++) expected+=dv.getUint8(i).toString(16).padStart(2,'0');
+  const t0=now();
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器阈值 ≤ 3,000 ms</b> · 人类不知道浮点的位模式');
+  stage.innerHTML=`<div class="card"><div class="q">给出该双精度浮点数的 IEEE-754 大端 64 位表示(16 位十六进制)。</div>
+    <div class="data expr">x = <span class="v">${x}</span></div>
+    <div class="inrow"><input id="iin" placeholder="64-bit big-endian hex …" autocomplete="off" spellcheck="false"></div></div>`;
+  const inp=$('#iin');
+  const submit=()=>{ if(aborted||gen!==myGen)return; const v=inp.value.trim().toLowerCase().replace(/^0x/,''), dt=now()-t0;
+    if(v!==expected){ fail('位模式错误 · 该编码须由机器从 IEEE-754 读出。','Wrong bit pattern.','WRONG'); return; }
+    if(dt>3000){ fail('正确但耗时 '+Math.round(dt)+' ms 超过 3,000 ms。','Too slow.',Math.round(dt)+' ms'); return; }
+    pass('IEEE-754',Math.round(dt),'ms',['64 bit 大端','耗时 '+Math.round(dt)+' ms','位模式 ✓']); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+  if(auto){ inp.value=expected; setTimeout(submit,60); } else inp.focus();
+}
+/* 08 median */
+function runMedian(){
+  const myGen=gen, auto=botMode||soloBot;
+  const M=201, nums=Array.from({length:M},()=>Math.floor(Math.random()*9000)+1000);
+  const med=[...nums].sort((a,b)=>a-b)[(M-1)/2], t0=now();
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器阈值 ≤ 2,000 ms</b> · 人类无法在限时内排序 201 个数');
+  stage.innerHTML=`<div class="card"><div class="q">下面有 ${M} 个数,求中位数。</div>
+    <div class="data" id="arr" style="max-height:92px;overflow:auto">${nums.join(', ')}</div>
+    <div class="inrow"><input id="min" placeholder="median = …" inputmode="numeric" autocomplete="off" spellcheck="false"></div></div>`;
+  const inp=$('#min');
+  const submit=()=>{ if(aborted||gen!==myGen)return; const dt=now()-t0;
+    if(String(Number(inp.value.trim()))!==String(med)){ fail('结果错误 · 求中位数须排序 201 个数,程序瞬间完成。','Wrong — sorting needs a program.','WRONG'); return; }
+    if(dt>2000){ fail('正确但耗时 '+Math.round(dt)+' ms 超过 2,000 ms。','Too slow.',Math.round(dt)+' ms'); return; }
+    pass('中位数',Math.round(dt),'ms',['样本 '+M+' 个','耗时 '+Math.round(dt)+' ms','结果 ✓']); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+  if(auto){ inp.value=String(med); setTimeout(submit,60); } else inp.focus();
+}
+/* 09 compute */
+function runCompute(){
+  const myGen=gen, auto=botMode||soloBot;
+  const N=250000, M=9973, t0=now();
+  let expected=0; for(let i=1;i<=N;i++) expected+=(i*i*i)%M;
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器阈值 ≤ 1,500 ms</b> · 该求和须由程序执行');
+  stage.innerHTML=`<div class="card"><div class="q">求下式精确值 —— 你必须运行代码。</div>
+    <div class="data expr">Σ<sub>i=1</sub><sup>250000</sup> ( i³ <span class="v">mod</span> 9973 )</div>
+    <div class="inrow"><input id="cin" placeholder="结果 = …" inputmode="numeric" autocomplete="off" spellcheck="false"></div></div>`;
+  const inp=$('#cin');
+  const submit=()=>{ if(aborted||gen!==myGen)return; const dt=now()-t0;
+    if(String(Number(inp.value.trim()))!==String(expected)){ fail('运算结果错误 · 此求和须由程序执行。','Wrong result.','WRONG'); return; }
+    if(dt>1500){ fail('结果正确但耗时 '+Math.round(dt)+' ms 超过 1,500 ms。','Too slow.',Math.round(dt)+' ms'); return; }
+    pass('运算',Math.round(dt),'ms',['迭代 '+comma(N)+' 项','耗时 '+Math.round(dt)+' ms','结果 ✓']); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+  if(auto){ inp.value=String(expected); setTimeout(submit,60); } else inp.focus();
+}
+/* 10 proof-of-work */
+function runPow(){
+  const myGen=gen, auto=botMode||soloBot;
+  const BITS=17, challenge='gate:'+rnd(10).toLowerCase();
+  setMeter('active','挖矿中 · MINING',CH[idx].label,'<b>难度: '+BITS+' 个前导零比特 ≈ 131,072 次哈希</b> · 人类无法挖矿');
+  stage.innerHTML=`<div class="card"><div class="q">找一个 nonce,使 sha256("${challenge}:"+nonce) 的二进制以 ${BITS} 个 0 开头。</div>
+    <div class="data" id="pdata">challenge = ${challenge} · target = ${BITS} leading zero bits</div>
+    <div class="inrow"><input id="pin" placeholder="golden nonce = …" inputmode="numeric" autocomplete="off" spellcheck="false"></div>
+    <div class="bar marquee" id="pbar" style="display:none"><i></i></div>
+    <div class="hint" id="ph">比特币式工作量证明:只能靠暴力穷举,人类做不到。</div></div>`;
+  const inp=$('#pin'), pdata=$('#pdata'), ph=$('#ph'), bar=$('#pbar');
+  const submit=()=>{ if(aborted||gen!==myGen)return; const n=inp.value.trim(); const h=sha256(challenge+':'+n);
+    if(leadingZeroBits(h)<BITS){ fail('nonce 无效 · 该哈希前导零不足,需要算力穷举。','Invalid nonce.','INVALID'); return; }
+    pass('工作量',comma(window.__powAttempts||0),'H',['前导零 '+BITS+' bit','哈希 '+comma(window.__powAttempts||0)+' 次','nonce '+n]); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+  if(auto){
+    bar.style.display='block'; let nonce=0, attempts=0, startedAt=now();
+    const chunk=()=>{ if(aborted||gen!==myGen)return; const fs=now();
+      while(now()-fs<12){ const h=sha256(challenge+':'+nonce); attempts++;
+        if(leadingZeroBits(h)>=BITS){ window.__powAttempts=attempts; const el=(now()-startedAt)/1000;
+          pdata.textContent='nonce = '+nonce+' · hash = '+h.slice(0,20)+'…'; ph.textContent='已挖出 · '+comma(attempts)+' 次哈希 · '+comma(attempts/el)+' H/s';
+          bar.style.display='none'; inp.value=String(nonce); setTimeout(submit,150); return; }
+        nonce++; }
+      const el=Math.max(0.001,(now()-startedAt)/1000); setRead(comma(attempts),'H'); ph.textContent='穷举中 · '+comma(attempts)+' 次哈希 · '+comma(attempts/el)+' H/s';
+      requestAnimationFrame(chunk); };
+    setTimeout(()=>{ if(aborted||gen!==myGen)return; requestAnimationFrame(chunk); },120);
+  } else inp.focus();
+}
+
+/* 11 popcount */
+function runPopcount(){
+  const myGen=gen, auto=botMode||soloBot;
+  const NIB=[0,1,1,2,1,2,2,3,1,2,2,3,2,3,3,4];
+  let h=''; for(let i=0;i<16;i++) h+='0123456789abcdef'[Math.floor(Math.random()*16)];
+  let bits=0; for(const ch of h) bits+=NIB[parseInt(ch,16)];
+  const t0=now();
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器阈值 ≤ 1,500 ms</b> · 人类无法逐位数清 64 位');
+  stage.innerHTML=`<div class="card"><div class="q">下面是一个 64 位值,数出其中为 1 的比特个数。</div>
+    <div class="data" id="pc">0x${h}</div>
+    <div class="inrow"><input id="pcin" placeholder="popcount = …" inputmode="numeric" autocomplete="off" spellcheck="false"></div></div>`;
+  const inp=$('#pcin');
+  const submit=()=>{ if(aborted||gen!==myGen)return; const dt=now()-t0;
+    if(String(Number(inp.value.trim()))!==String(bits)){ fail('计数错误 · 机器按位掩码瞬间得出。','Wrong popcount.','WRONG'); return; }
+    if(dt>1500){ fail('正确但耗时 '+Math.round(dt)+' ms 超过 1,500 ms。','Too slow.',Math.round(dt)+' ms'); return; }
+    pass('位计数',Math.round(dt),'ms',['置位 '+bits+' / 64','耗时 '+Math.round(dt)+' ms','正确 ✓']); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+  if(auto){ inp.value=String(bits); setTimeout(submit,60); } else inp.focus();
+}
+/* 12 modular exponentiation */
+function runModpow(){
+  const myGen=gen, auto=botMode||soloBot;
+  const a=2+Math.floor(Math.random()*40), b=200+Math.floor(Math.random()*800);
+  const primes=[40009,49991,55001,60013,65521,69991], m=primes[Math.floor(Math.random()*primes.length)];
+  const modpow=(A,B,M)=>{ A=BigInt(A)%BigInt(M); let r=1n,base=A,e=BigInt(B),mod=BigInt(M); while(e>0n){ if(e&1n)r=(r*base)%mod; base=(base*base)%mod; e>>=1n; } return r; };
+  const expected=modpow(a,b,m).toString(); const t0=now();
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器阈值 ≤ 1,500 ms</b> · 人类无法心算模幂');
+  stage.innerHTML=`<div class="card"><div class="q">求下式的精确值 —— 模幂,须用快速幂。</div>
+    <div class="data expr">${a}<sup>${b}</sup> <span class="v">mod</span> ${m}</div>
+    <div class="inrow"><input id="mpin" placeholder="结果 = …" inputmode="numeric" autocomplete="off" spellcheck="false"></div></div>`;
+  const inp=$('#mpin');
+  const submit=()=>{ if(aborted||gen!==myGen)return; const dt=now()-t0; const v=inp.value.trim().replace(/^0+(?=\d)/,'');
+    if(v!==expected){ fail('结果错误 · 模幂须用程序快速幂瞬间求得。','Wrong — needs fast exponentiation.','WRONG'); return; }
+    if(dt>1500){ fail('正确但耗时 '+Math.round(dt)+' ms 超过 1,500 ms。','Too slow.',Math.round(dt)+' ms'); return; }
+    pass('模幂',Math.round(dt),'ms',['底数 '+a,'指数 '+b,'模 '+m,'耗时 '+Math.round(dt)+' ms']); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+  if(auto){ inp.value=expected; setTimeout(submit,60); } else inp.focus();
+}
+/* 13 integer factorization */
+function runFactor(){
+  const myGen=gen, auto=botMode||soloBot;
+  const isP=n=>{ if(n<2)return false; for(let i=2;i*i<=n;i++) if(n%i===0)return false; return true; };
+  const rp=()=>{ for(;;){ const n=2000+Math.floor(Math.random()*7999); if(isP(n)) return n; } };
+  const p=rp(), q=rp(), N=p*q, lo=Math.min(p,q), hi=Math.max(p,q); const t0=now();
+  setMeter('active','测量中 · MEASURING',CH[idx].label,'<b>机器阈值 ≤ 2,000 ms</b> · 人类无法在限时内分解');
+  stage.innerHTML=`<div class="card"><div class="q">下面是两个质数的乘积,把它分解回 p × q。</div>
+    <div class="data" id="fc">n = ${N}</div>
+    <div class="inrow"><input id="fin" placeholder="p, q = …" inputmode="numeric" autocomplete="off" spellcheck="false"></div>
+    <div class="hint">试除法对机器是一瞬间的事,对人不是。</div></div>`;
+  const inp=$('#fin');
+  const submit=()=>{ if(aborted||gen!==myGen)return; const dt=now()-t0;
+    const m=inp.value.trim().split(/[^0-9]+/).filter(Boolean).map(Number);
+    if(m.length!==2 || m[0]<=1 || m[1]<=1 || m[0]>=N || m[1]>=N || m[0]*m[1]!==N){ fail('分解错误 · 须找出两个真因子,程序试除即得。','Wrong factors.','WRONG'); return; }
+    if(dt>2000){ fail('正确但耗时 '+Math.round(dt)+' ms 超过 2,000 ms。','Too slow.',Math.round(dt)+' ms'); return; }
+    pass('分解',Math.round(dt),'ms',['p = '+lo,'q = '+hi,'耗时 '+Math.round(dt)+' ms']); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+  if(auto){ inp.value=lo+' * '+hi; setTimeout(submit,60); } else inp.focus();
+}
+
+/* ===================== human trials ===================== */
+/* H1 a quick tap */
+function runHReflex(){
+  const myGen=gen, auto=botMode||soloBot;
+  const LO=120, HI=900;
+  setMeter('active','进行中',CH_HUMAN[idx].label,'放轻松,像平常点按钮那样点一下就好。');
+  stage.innerHTML=`<div class="card"><div class="q">方块亮起后,像平常一样点一下。</div>
+    <div class="pad" id="pad" role="button" tabindex="0">稍等一下…</div>
+    <div class="hint">不用刻意求快,自然就好。</div></div>`;
+  const pad=$('#pad'); let live=false,done=false,armedAt=0;
+  const respond=()=>{ if(done||aborted||gen!==myGen)return;
+    if(!live){ done=true; clean(); fail('还没亮就点了,稍等亮起来再点。','','抢拍了'); return; }
+    done=true; const lat=now()-armedAt; clean();
+    if(lat<LO){ fail('点得太快了 —— 快得不像真人。','真人没法这么快','太快',['延迟 '+Math.round(lat)+' ms','下限 '+LO+' ms']); return; }
+    if(lat>HI){ fail('慢了一点,再试一次?','','慢了',['延迟 '+Math.round(lat)+' ms','上限 '+HI+' ms']); return; }
+    pass('反应','自然','✓',['延迟 '+Math.round(lat)+' ms','落在自然区间']); };
+  const onKey=e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); respond(); } };
+  function clean(){ pad.removeEventListener('mousedown',respond); pad.removeEventListener('touchstart',respond); pad.removeEventListener('keydown',onKey); }
+  pad.addEventListener('mousedown',respond); pad.addEventListener('touchstart',respond,{passive:true}); pad.addEventListener('keydown',onKey);
+  setTimeout(()=>{ if(done||aborted||gen!==myGen)return; live=true; armedAt=now(); pad.classList.add('live'); pad.textContent='点我!';
+    if(auto) respond(); }, 600+Math.random()*900);
+}
+/* H2 trace the line (mouse trajectory) */
+function runHTrace(){
+  const myGen=gen, auto=botMode||soloBot;
+  const WPN=4;
+  setMeter('active','进行中',CH_HUMAN[idx].label,'用鼠标(或手指)沿着线滑过去,依次经过每个亮点。');
+  stage.innerHTML=`<div class="card"><div class="q">把光标从左滑到右,依次经过 ${WPN} 个亮点。移动的轨迹才算数。</div>
+    <div class="trace" id="trace"></div>
+    <div class="hint" id="th">在框里移动光标(手机请用手指滑动)。</div></div>`;
+  const trace=$('#trace'), th=$('#th'); const wps=[];
+  for(let i=0;i<WPN;i++){ const d=document.createElement('div'); d.className='wp'; trace.appendChild(d); wps.push({el:d}); }
+  let nextWp=0, samples=0, done=false;
+  requestAnimationFrame(()=>{ if(aborted||gen!==myGen)return; const R=trace.getBoundingClientRect();
+    wps.forEach((w,i)=>{ const x=24+(R.width-48)*(i/(WPN-1)); const y=clamp(R.height*(0.28+0.44*Math.random()),16,R.height-16); w.x=x; w.y=y; w.el.style.left=x+'px'; w.el.style.top=y+'px'; }); });
+  const finishOk=()=>{ done=true; trace.removeEventListener('pointermove',onMove); if(samples<16){ fail('轨迹采样太少 —— 像是被瞬移过去的。','','没轨迹',['轨迹点 '+samples,'下限 16']); return; } pass('轨迹','顺着划过','✓',['轨迹点 '+samples,'经过 '+WPN+' / '+WPN+' 点']); };
+  const onMove=e=>{ if(done||aborted||gen!==myGen)return; samples++; const R=trace.getBoundingClientRect(); const px=e.clientX-R.left, py=e.clientY-R.top;
+    const w=wps[nextWp]; if(w && Math.hypot(px-w.x,py-w.y)<28){ w.el.classList.add('hit'); nextWp++; th.textContent='经过 '+nextWp+'/'+WPN; if(nextWp>=WPN) finishOk(); } };
+  trace.addEventListener('pointermove',onMove);
+  if(auto){ setTimeout(()=>{ if(aborted||gen!==myGen||done)return; fail('机器没有连续的鼠标轨迹 —— 过不了。','','无轨迹'); }, 500); }
+  setTimeout(()=>{ if(aborted||gen!==myGen||done||auto)return; done=true; trace.removeEventListener('pointermove',onMove); fail('没顺着线走完,再试一次?','','超时'); }, 14000);
+}
+/* H3 drag it over */
+function runHPath(){
+  const myGen=gen, auto=botMode||soloBot;
+  setMeter('active','进行中',CH_HUMAN[idx].label,'用手把方块拖过去,留下自然的轨迹就行。');
+  stage.innerHTML=`<div class="card"><div class="q">按住方块,把它拖进右边的框里。</div>
+    <div class="lane" id="lane"><div class="dock" id="dock">放这里</div><div class="knob" id="knob">✥</div></div>
+    <div class="hint" id="ph">用鼠标或手指拖一下。</div></div>`;
+  const lane=$('#lane'), knob=$('#knob'), dock=$('#dock'), ph=$('#ph');
+  let dragging=false, done=false, samples=[], offX=0;
+  const inDock=()=>{ const k=knob.getBoundingClientRect(), d=dock.getBoundingClientRect(); const cx=k.left+k.width/2, cy=k.top+k.height/2; return cx>=d.left&&cx<=d.right&&cy>=d.top&&cy<=d.bottom; };
+  const place=cx=>{ const L=lane.getBoundingClientRect(); let x=cx-L.left-offX; x=Math.max(4,Math.min(L.width-knob.offsetWidth-4,x)); knob.style.left=x+'px'; };
+  const evaluate=()=>{ if(done||aborted||gen!==myGen)return; done=true;
+    if(samples.length<12){ fail('没看到拖动的轨迹 —— 像是被瞬移过去的。','','没轨迹',['轨迹点 '+samples.length,'下限 12']); return; }
+    const ys=samples.map(s=>s.y), wobble=Math.max(...ys)-Math.min(...ys);
+    const sp=[]; for(let i=1;i<samples.length;i++){ const dt=samples[i].t-samples[i-1].t||1; sp.push(Math.hypot(samples[i].x-samples[i-1].x,samples[i].y-samples[i-1].y)/dt); }
+    const m=sp.reduce((a,b)=>a+b,0)/sp.length||0, sd=Math.sqrt(sp.reduce((a,b)=>a+(b-m)*(b-m),0)/sp.length||0), cv=m?sd/m:0;
+    if(wobble<2 && cv<0.12){ fail('轨迹太直太匀速,不像人手。','','太规整',['竖向抖动 '+wobble.toFixed(1)+' px','速度变异 '+cv.toFixed(2)]); return; }
+    pass('拖动','顺滑','✓',['轨迹点 '+samples.length,'竖向抖动 '+Math.round(wobble)+' px','速度变异 '+cv.toFixed(2)]); };
+  const onDown=e=>{ if(done||aborted||gen!==myGen)return; dragging=true; const k=knob.getBoundingClientRect(); offX=e.clientX-k.left; samples=[]; ph.textContent='拖动中…'; try{knob.setPointerCapture(e.pointerId);}catch(_){} };
+  const onMove=e=>{ if(!dragging||done||aborted||gen!==myGen)return; place(e.clientX); samples.push({x:e.clientX,y:e.clientY,t:now()}); if(inDock()) evaluate(); };
+  const onUp=()=>{ dragging=false; if(!done && !inDock()) ph.textContent='还没进框 —— 再拖一次。'; };
+  knob.addEventListener('pointerdown',onDown); knob.addEventListener('pointermove',onMove); knob.addEventListener('pointerup',onUp);
+  if(auto){ setTimeout(()=>{ if(aborted||gen!==myGen||done)return; const L=lane.getBoundingClientRect(); knob.style.left=(L.width-knob.offsetWidth-16)+'px'; samples=[{x:0,y:0,t:now()},{x:1,y:0,t:now()+1}]; evaluate(); }, 280); }
+}
+/* H4 tap along */
+function runHRhythm(){
+  const myGen=gen, auto=botMode||soloBot;
+  const N=5, iv=620, SD_LO=8, SD_HI=160;
+  setMeter('active','进行中',CH_HUMAN[idx].label,'跟着拍子敲,放松点,自然的快慢就好。');
+  stage.innerHTML=`<div class="card"><div class="q">跟着节奏,在每个点亮起时敲一下,共 ${N} 下。</div>
+    <div class="beats" id="beats">${Array.from({length:N},()=>'<span></span>').join('')}</div>
+    <div class="pad" id="pad" role="button" tabindex="0">敲一下</div></div>`;
+  const dots=[...$('#beats').children], pad=$('#pad');
+  const start=now()+800, beatT=Array.from({length:N},(_,k)=>start+k*iv);
+  const offs=new Array(N).fill(null); let finished=false;
+  const tap=()=>{ if(finished||aborted||gen!==myGen)return; const t=now(); let bi=0,best=Infinity; for(let i=0;i<N;i++){ const d=Math.abs(t-beatT[i]); if(offs[i]===null&&d<best){best=d;bi=i;} } if(offs[bi]!==null)return; offs[bi]=t-beatT[bi]; dots[bi].classList.remove('now'); dots[bi].classList.add('hit'); };
+  const onKey=e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); tap(); } };
+  pad.addEventListener('mousedown',tap); pad.addEventListener('touchstart',tap,{passive:true}); pad.addEventListener('keydown',onKey);
+  beatT.forEach((bt,i)=>{ setTimeout(()=>{ if(aborted||gen!==myGen)return; dots[i].classList.add('now'); setTimeout(()=>dots[i].classList.remove('now'),150); }, Math.max(0,bt-now())); });
+  if(auto){ beatT.forEach(bt=>{ setTimeout(()=>{ if(aborted||gen!==myGen)return; while(now()<bt){} tap(); }, Math.max(0,bt-now()-12)); }); }
+  setTimeout(()=>{ if(aborted||gen!==myGen)return; finished=true; pad.removeEventListener('mousedown',tap); pad.removeEventListener('keydown',onKey);
+    if(offs.some(o=>o===null)){ fail('没敲满 5 下,再试一次?','','没跟上',['敲击 '+offs.filter(o=>o!==null).length+' / '+N]); return; }
+    const mean=offs.reduce((a,b)=>a+b,0)/N, sd=Math.sqrt(offs.reduce((a,b)=>a+(b-mean)*(b-mean),0)/N);
+    if(sd<SD_LO){ fail('每一下都分毫不差 —— 太准了,不像人手。','','太精准',['σ '+Math.round(sd)+' ms','真人下限 '+SD_LO+' ms']); return; }
+    if(sd>SD_HI){ fail('节奏有点乱,没跟上拍子,再试一次?','','太乱',['σ '+Math.round(sd)+' ms','上限 '+SD_HI+' ms']); return; }
+    pass('节奏','像真人','✓',['σ '+Math.round(sd)+' ms','落在真人区间']); }, (start-now())+N*iv+450);
+}
+/* H5 spot the odd (canvas) */
+function runHOdd(){
+  const myGen=gen, auto=botMode||soloBot;
+  const K=5, odd=Math.floor(Math.random()*K), altColor=Math.random()<0.5;
+  setMeter('active','进行中',CH_HUMAN[idx].label,'看一眼,哪个和其它的不一样?点它。');
+  stage.innerHTML=`<div class="card"><div class="q">下面哪一个和其它的不一样?点一下它。</div>
+    <div class="oddrow" id="oddrow"></div>
+    <div class="hint">机器读不到画布像素,认不出哪个不同。</div></div>`;
+  const row=$('#oddrow'); let done=false;
+  for(let i=0;i<K;i++){
+    const cv=document.createElement('canvas'); cv.width=60; cv.height=60; cv.className='oddcv';
+    const g=cv.getContext('2d'); g.fillStyle='#0c1119'; g.fillRect(0,0,60,60);
+    g.fillStyle=(i===odd&&altColor)?'#5e9bff':'#ff9270';
+    if(i===odd&&!altColor){ g.fillRect(16,16,28,28); } else { g.beginPath(); g.arc(30,30,15,0,Math.PI*2); g.fill(); }
+    cv.addEventListener('click',()=>{ if(done||aborted||gen!==myGen)return; done=true;
+      if(i===odd){ cv.classList.add('rightc'); pass('找不同','答对了','✓',['候选 '+K+' 个','一眼分辨']); }
+      else { cv.classList.add('wrongc'); fail('选错了,再看一眼?','','选错'); } });
+    row.appendChild(cv);
+  }
+  if(auto){ setTimeout(()=>{ if(aborted||gen!==myGen||done)return; row.children[(odd+1)%K].click(); }, 520); }
+}
+/* H6 count them (canvas) */
+function runHSee(){
+  const myGen=gen, auto=botMode||soloBot;
+  setMeter('active','进行中',CH_HUMAN[idx].label,'看一眼,数出圆点的个数。');
+  const W=420,H=150,dpr=Math.min(2,window.devicePixelRatio||1), distN=4+Math.floor(Math.random()*5);
+  stage.innerHTML=`<div class="card"><div class="q">画面里有几个<b style="color:var(--human)">圆点</b>?(方块不算)</div>
+    <div class="canvasbox"><canvas id="cv"></canvas></div>
+    <div class="opts" id="opts"></div>
+    <div class="hint">一眼就能数出来 —— 这正是人最擅长、机器最头疼的事。</div></div>`;
+  const cv=$('#cv'); cv.width=W*dpr; cv.height=H*dpr; cv.style.aspectRatio=W+'/'+H;
+  const g=cv.getContext('2d'); g.scale(dpr,dpr); g.fillStyle='#0c1119'; g.fillRect(0,0,W,H);
+  const rxy=()=>[20+Math.random()*(W-40),20+Math.random()*(H-40)];
+  g.fillStyle='#2a3550';
+  for(let i=0;i<distN;i++){ const [x,y]=rxy(); g.save(); g.translate(x,y); g.rotate(Math.random()*1.2); g.fillRect(-10,-10,20,20); g.restore(); }
+  const circles=[]; let tries=0, want=3+Math.floor(Math.random()*5);
+  while(circles.length<want && tries<500){ tries++; const [x,y]=rxy(); if(circles.every(c=>Math.hypot(c[0]-x,c[1]-y)>32)) circles.push([x,y]); }
+  g.fillStyle='#ff9270'; circles.forEach(([x,y])=>{ g.beginPath(); g.arc(x,y,11,0,Math.PI*2); g.fill(); });
+  const N=circles.length;
+  const set=new Set([N]); while(set.size<4){ const v=Math.max(1,N+Math.floor(Math.random()*7)-3); set.add(v); }
+  const arr=[...set].sort((a,b)=>a-b), opts=$('#opts'); let done=false;
+  arr.forEach(v=>{ const b=document.createElement('button'); b.className='opt'; b.textContent=v;
+    b.addEventListener('click',()=>{ if(done||aborted||gen!==myGen)return;
+      if(v===N){ done=true; b.classList.add('right'); pass('识图','答对了','✓',['圆点 '+N+' 个','一眼数清']); }
+      else { done=true; b.classList.add('wrong'); fail('数错了,再看一眼?','','数错了'); } });
+    opts.appendChild(b); });
+  if(auto){ setTimeout(()=>{ if(aborted||gen!==myGen||done)return; const wrong=arr.find(v=>v!==N); const btn=[...opts.children].find(b=>+b.textContent===wrong); btn&&btn.click(); }, 520); }
+}
+
+/* H7 slide to fit (trajectory + visual gap) */
+function runHSlide(){
+  const myGen=gen, auto=botMode||soloBot;
+  setMeter('active','进行中',CH_HUMAN[idx].label,'按住滑块,把它拖到右边缺口正上方再松手。');
+  stage.innerHTML=`<div class="card"><div class="q">按住滑块沿轨道拖动,对齐右边的缺口后松手。</div>
+    <div class="slane" id="slane"><div class="sgap" id="sgap"></div><div class="sknob" id="sknob">⇿</div></div>
+    <div class="hint" id="sh">用鼠标或手指拖动 —— 留下连续轨迹才算数。</div></div>`;
+  const lane=$('#slane'), knob=$('#sknob'), gap=$('#sgap'), sh=$('#sh');
+  let gapX=0, done=false, dragging=false, samples=[], offX=0;
+  requestAnimationFrame(()=>{ if(aborted||gen!==myGen)return; const L=lane.getBoundingClientRect();
+    gapX=L.width*(0.55+Math.random()*0.30); gap.style.left=gapX+'px'; });
+  const place=cx=>{ const L=lane.getBoundingClientRect(); let x=cx-L.left-offX; x=Math.max(4,Math.min(L.width-knob.offsetWidth-4,x)); knob.style.left=x+'px'; };
+  const finish=()=>{ if(done||aborted||gen!==myGen)return; done=true;
+    const kx=knob.offsetLeft+knob.offsetWidth/2, target=gapX+gap.offsetWidth/2, err=Math.abs(kx-target);
+    if(samples.length<12){ fail('没看到拖动轨迹 —— 像是被瞬移过去的。','','无轨迹'); return; }
+    const ys=samples.map(s=>s.y), wob=Math.max(...ys)-Math.min(...ys);
+    if(err>18){ fail('没对准缺口,差了 '+Math.round(err)+' px,再试一次?','','没对齐'); return; }
+    pass('拼合','对齐了','✓',['误差 '+Math.round(err)+' px','轨迹点 '+samples.length,'竖向抖动 '+Math.round(wob)+' px']); };
+  const onDown=e=>{ if(done||aborted||gen!==myGen)return; dragging=true; const k=knob.getBoundingClientRect(); offX=e.clientX-k.left; samples=[]; sh.textContent='拖动中…'; try{knob.setPointerCapture(e.pointerId);}catch(_){} };
+  const onMove=e=>{ if(!dragging||done||aborted||gen!==myGen)return; place(e.clientX); samples.push({x:e.clientX,y:e.clientY,t:now()}); };
+  const onUp=()=>{ if(!dragging)return; dragging=false; finish(); };
+  knob.addEventListener('pointerdown',onDown); knob.addEventListener('pointermove',onMove); knob.addEventListener('pointerup',onUp);
+  if(auto){ setTimeout(()=>{ if(aborted||gen!==myGen||done)return; const L=lane.getBoundingClientRect(); knob.style.left=Math.min(L.width-knob.offsetWidth-4,gapX)+'px'; done=true; fail('机器没有连续的拖动轨迹 —— 过不了。','','无轨迹'); }, 360); }
+}
+/* H8 track the moving dot (continuous cursor follow) */
+function runHTrack(){
+  const myGen=gen, auto=botMode||soloBot;
+  const DUR=2000, NEED=0.5, RAD=52, WARM=450;
+  setMeter('active','进行中',CH_HUMAN[idx].label,'把光标放到移动的点上,跟着它走,别掉队。');
+  stage.innerHTML=`<div class="card"><div class="q">让光标(或手指)跟住移动的点,坚持到进度条走满。</div>
+    <div class="tbox" id="tbox"><div class="tdot" id="tdot"></div></div>
+    <div class="bar"><i id="tkbar"></i></div>
+    <div class="hint" id="tkh">机器没有连续的光标轨迹,跟不住移动目标。</div></div>`;
+  const box=$('#tbox'), dot=$('#tdot'), bar=$('#tkbar'), th=$('#tkh');
+  let px=-999, py=-999, near=0, total=0, done=false, t0=0, started=false;
+  const dotPos=t=>{ const R=box.getBoundingClientRect(); const cx=R.width/2,cy=R.height/2, ax=R.width*0.26, ay=R.height*0.22; return [cx+ax*Math.cos(t/680), cy+ay*Math.sin(t/680)]; };
+  function loop(){ if(done||aborted||gen!==myGen)return; const el=now()-t0; const [dx,dy]=dotPos(el); dot.style.left=dx+'px'; dot.style.top=dy+'px';
+    const hit=Math.hypot(px-dx,py-dy)<RAD; if(hit){ dot.classList.add('on'); } else dot.classList.remove('on');
+    if(el>=WARM){ total++; if(hit) near++; }
+    bar.style.width=Math.min(100,el/DUR*100)+'%';
+    if(el>=DUR){ done=true; const ratio=near/Math.max(1,total);
+      if(ratio>=NEED) pass('跟踪','跟住了','✓',['跟住时长 '+Math.round(ratio*100)+'%','采样 '+total+' 帧']);
+      else fail('掉队了 —— 只跟住了 '+Math.round(ratio*100)+'%,再试一次?','','掉队'); return; }
+    requestAnimationFrame(loop); }
+  box.addEventListener('pointermove',e=>{ const R=box.getBoundingClientRect(); px=e.clientX-R.left; py=e.clientY-R.top; if(!started){ started=true; t0=now(); requestAnimationFrame(loop); } });
+  if(auto){ setTimeout(()=>{ if(aborted||gen!==myGen||done)return; done=true; fail('机器没有连续光标轨迹 —— 跟不住移动目标。','','无光标'); }, 500); }
+  else { setTimeout(()=>{ if(!started && !done && !aborted && gen===myGen) th.textContent='把光标移进框里开始。'; }, 1300);
+         setTimeout(()=>{ if(!started && !done && !aborted && gen===myGen){ done=true; fail('没有开始跟踪,再试一次?','','超时'); } }, 12000); }
+}
+/* H9 name the shape (canvas perception) */
+function runHShape(){
+  const myGen=gen, auto=botMode||soloBot;
+  const shapes=[['圆形','circle'],['方形','square'],['三角形','triangle'],['菱形','diamond']];
+  const pick=Math.floor(Math.random()*shapes.length), kind=shapes[pick][1];
+  setMeter('active','进行中',CH_HUMAN[idx].label,'看一眼画面里画的是什么形状,选出来。');
+  stage.innerHTML=`<div class="card"><div class="q">画面里画的是什么形状?选一个。</div>
+    <div class="canvasbox"><canvas id="scv"></canvas></div>
+    <div class="opts" id="sopts"></div>
+    <div class="hint">机器读不到画布像素,认不出画的是什么。</div></div>`;
+  const W=300,H=150,dpr=Math.min(2,window.devicePixelRatio||1), cv=$('#scv');
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.aspectRatio=W+'/'+H;
+  const g=cv.getContext('2d'); g.scale(dpr,dpr); g.fillStyle='#0c1119'; g.fillRect(0,0,W,H);
+  g.fillStyle='#ff9270'; const cx=W/2, cy=H/2, r=42;
+  if(kind==='circle'){ g.beginPath(); g.arc(cx,cy,r,0,Math.PI*2); g.fill(); }
+  else if(kind==='square'){ g.fillRect(cx-r,cy-r,2*r,2*r); }
+  else if(kind==='triangle'){ g.beginPath(); g.moveTo(cx,cy-r); g.lineTo(cx+r,cy+r); g.lineTo(cx-r,cy+r); g.closePath(); g.fill(); }
+  else { g.beginPath(); g.moveTo(cx,cy-r); g.lineTo(cx+r,cy); g.lineTo(cx,cy+r); g.lineTo(cx-r,cy); g.closePath(); g.fill(); }
+  const order=[...shapes].sort(()=>Math.random()-0.5), opts=$('#sopts'); let done=false;
+  order.forEach(([cn,k])=>{ const b=document.createElement('button'); b.className='opt'; b.textContent=cn;
+    b.addEventListener('click',()=>{ if(done||aborted||gen!==myGen)return; done=true;
+      if(k===kind){ b.classList.add('right'); pass('识形','认出来了','✓',['形状 '+shapes[pick][0],'一眼识别']); }
+      else { b.classList.add('wrong'); fail('认错了,再看一眼?','','认错'); } }); opts.appendChild(b); });
+  if(auto){ setTimeout(()=>{ if(aborted||gen!==myGen||done)return; const wrong=order.find(([cn,k])=>k!==kind); const btn=[...opts.children].find(b=>b.textContent===wrong[0]); btn&&btn.click(); }, 520); }
+}
+
+/* ===================== wire up ===================== */
+beginBtn.addEventListener('click',()=>start(false));
+botBtn.addEventListener('click',()=>start(true));
+resetBtn.addEventListener('click',reset);
+segM.addEventListener('click',()=>{ if(MODE!=='machine') setMode('machine'); });
+segH.addEventListener('click',()=>{ if(MODE!=='human') setMode('human'); });
+window.__bot=function(){ reset(); aborted=false; start(true); return '🤖 running '+CAT().length+'-trial '+MODE+' verification…'; };
+window.__step=function(){ if(idx>=0 && idx<CAT().length){ soloBot=true; renderCurrent(); return '🤖 solved one step'; } return 'no active step'; };
+setMode('human'); aborted=false;
+
+</script>
+</body>
+</html>

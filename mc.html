@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>方块世界 · 游戏中</title>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<style>
+  :root{
+    --ui:'Trebuchet MS','Segoe UI',system-ui,sans-serif;
+    --panel:rgba(18,20,26,0.92);
+    --slot:#8b8b8b; --slot-d:#373737; --slot-l:#ffffff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0b0d12;font-family:var(--ui);}
+  #app{position:fixed;inset:0;display:block;cursor:crosshair;}
+
+  /* 受伤红屏 */
+  #hurt{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .1s;
+    background:radial-gradient(ellipse at center, rgba(120,0,0,0) 35%, rgba(150,0,0,.65) 100%);z-index:30;}
+  /* 维度切换淡入淡出 */
+  #fade{position:fixed;inset:0;background:#000;opacity:0;transition:opacity .4s;pointer-events:none;z-index:60;}
+  /* 传送门紫屏 */
+  #portalTint{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .2s;
+    background:radial-gradient(ellipse at center, rgba(120,30,180,.15) 20%, rgba(90,20,150,.7) 100%);z-index:29;mix-blend-mode:screen;}
+
+  /* 准星 */
+  #crosshair{position:fixed;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%);
+    pointer-events:none;z-index:25;opacity:0;transition:opacity .2s;mix-blend-mode:difference;}
+  #crosshair::before,#crosshair::after{content:'';position:absolute;background:#fff;}
+  #crosshair::before{left:50%;top:0;width:2px;height:100%;transform:translateX(-50%);}
+  #crosshair::after{top:50%;left:0;height:2px;width:100%;transform:translateY(-50%);}
+
+  /* 顶部 HUD 条 */
+  #topbar{position:fixed;top:10px;left:10px;right:10px;display:flex;align-items:center;gap:8px;z-index:26;pointer-events:none;}
+  .badge{display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid rgba(255,255,255,.12);
+    padding:6px 11px;border-radius:9px;color:#eee;font-size:13px;backdrop-filter:blur(6px);box-shadow:0 4px 14px rgba(0,0,0,.4);}
+  .badge .ic{font-size:15px;}
+  #topbar .spacer{flex:1;}
+  .tbtn{pointer-events:auto;cursor:pointer;background:var(--panel);border:1px solid rgba(255,255,255,.14);
+    color:#eee;font-size:12.5px;padding:7px 12px;border-radius:9px;backdrop-filter:blur(6px);transition:.13s;font-family:var(--ui);}
+  .tbtn:hover{background:rgba(60,68,84,.95);transform:translateY(-1px);border-color:rgba(255,255,255,.3);}
+  .tbtn:active{transform:translateY(0);}
+
+  /* Boss 血条 */
+  #bossBar{position:fixed;top:54px;left:50%;transform:translateX(-50%);width:min(540px,80vw);display:none;
+    flex-direction:column;align-items:center;gap:4px;z-index:26;pointer-events:none;}
+  #bossName{color:#e9c6ff;font-size:14px;text-shadow:0 2px 4px #000;letter-spacing:2px;}
+  #bossTrack{width:100%;height:11px;background:rgba(0,0,0,.6);border:1px solid #3a2050;border-radius:3px;overflow:hidden;}
+  #bossFill{height:100%;width:100%;background:linear-gradient(90deg,#b042e8,#e070ff);transition:width .2s;}
+
+  /* 物品名提示 */
+  #selName{position:fixed;left:50%;bottom:122px;transform:translateX(-50%);color:#fff;font-size:15px;
+    text-shadow:0 2px 5px #000;opacity:0;transition:opacity .3s;z-index:24;pointer-events:none;}
+
+  /* 状态条（血/饿/甲/经验/氧气） */
+  #stats{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);width:min(380px,86vw);z-index:24;pointer-events:none;}
+  .statRows{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:3px;}
+  .pipline{display:flex;gap:1px;}
+  .pip{font-size:13px;line-height:1;filter:drop-shadow(0 1px 1px #000);}
+  #armorRow.hide,#airRow.hide{display:none;}
+  #xpWrap{width:100%;height:7px;background:rgba(0,0,0,.55);border-radius:2px;overflow:hidden;position:relative;border:1px solid rgba(0,0,0,.5);}
+  #xpBar{height:100%;width:0;background:linear-gradient(90deg,#5fe000,#9cff3d);transition:width .25s;}
+  #xpLevel{position:absolute;left:50%;top:-15px;transform:translateX(-50%);color:#7cff3d;font-size:12px;font-weight:bold;text-shadow:0 1px 2px #000,0 0 3px #000;}
+
+  /* 快捷栏 */
+  #hotbar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:3px;z-index:24;
+    background:rgba(0,0,0,.35);padding:4px;border-radius:8px;border:1px solid rgba(255,255,255,.1);}
+  .hslot{position:relative;width:50px;height:50px;background:rgba(139,139,139,.55);
+    border:2px solid;border-color:var(--slot-d) var(--slot-l) var(--slot-l) var(--slot-d);border-radius:3px;cursor:pointer;}
+  .hslot.active{border-color:#fff;box-shadow:0 0 0 2px #fff, 0 0 10px rgba(255,255,255,.4);transform:scale(1.06);z-index:2;}
+  .hslot img{width:40px;height:40px;position:absolute;left:5px;top:5px;image-rendering:pixelated;pointer-events:none;}
+  .hslot .cnt{position:absolute;right:3px;bottom:1px;color:#fff;font-size:13px;font-weight:bold;text-shadow:1px 1px 0 #000,-1px -1px 0 #000;pointer-events:none;}
+  .hslot .hnum{position:absolute;left:3px;top:1px;color:rgba(255,255,255,.5);font-size:9px;pointer-events:none;}
+  .durbar{position:absolute;left:5px;right:5px;bottom:3px;height:3px;background:#000;border-radius:1px;overflow:hidden;}
+  .durbar>div{height:100%;}
+
+  /* 物品栏 / 工作台 / 箱子 / 熔炉 大界面 */
+  #screen{position:fixed;inset:0;display:none;z-index:40;background:rgba(0,0,0,.62);backdrop-filter:blur(3px);
+    align-items:center;justify-content:center;}
+  #panel{background:linear-gradient(180deg,#3a3a44,#2c2c34);border:3px solid;
+    border-color:#56565f #1a1a1f #1a1a1f #56565f;border-radius:8px;padding:16px 18px;max-height:92vh;overflow:auto;
+    box-shadow:0 24px 60px rgba(0,0,0,.6);min-width:320px;}
+  #screenTitle{color:#e8e8e8;font-size:16px;margin-bottom:12px;text-shadow:1px 1px 0 #000;letter-spacing:1px;}
+  .invwrap{display:flex;flex-direction:column;gap:11px;}
+  .lbox{display:flex;flex-direction:column;gap:5px;}
+  .isec{color:#bdbdbd;font-size:11px;letter-spacing:.5px;}
+  .igrid{display:grid;gap:2px;}
+  .islot{position:relative;width:44px;height:44px;background:rgba(139,139,139,.5);
+    border:2px solid;border-color:var(--slot-d) var(--slot-l) var(--slot-l) var(--slot-d);border-radius:2px;cursor:pointer;}
+  .islot:hover{background:rgba(180,180,190,.7);}
+  .islot img{width:34px;height:34px;position:absolute;left:5px;top:5px;image-rendering:pixelated;pointer-events:none;}
+  .islot .cnt{position:absolute;right:2px;bottom:0;color:#fff;font-size:12px;font-weight:bold;text-shadow:1px 1px 0 #000;pointer-events:none;}
+  .resultcell{background:rgba(90,120,70,.6)!important;border-color:#2c3a22 #aef07a #aef07a #2c3a22!important;}
+  .craftrow{display:flex;align-items:center;gap:14px;}
+  .craftarrow{color:#cfcfcf;font-size:26px;}
+  .invbottom{display:flex;gap:18px;}
+  .armorcol{display:grid;grid-template-columns:44px;gap:2px;}
+  .creative{max-height:240px;overflow-y:auto;padding:4px;background:rgba(0,0,0,.25);border-radius:4px;}
+  .creslot{width:40px;height:40px;}
+  .creslot img{width:32px;height:32px;left:4px;top:4px;}
+  .furnace-col{display:flex;align-items:center;gap:14px;}
+  .furleft{display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .furflame{font-size:22px;opacity:.25;}
+  .furarrow{color:#cfcfcf;font-size:26px;}
+
+  /* 拖动幽灵 */
+  #dragGhost{position:fixed;width:40px;height:40px;pointer-events:none;z-index:70;display:none;}
+  #dragGhost img{width:40px;height:40px;image-rendering:pixelated;}
+  #dragGhost .cnt{position:absolute;right:0;bottom:-2px;color:#fff;font-size:13px;font-weight:bold;text-shadow:1px 1px 0 #000;}
+
+  /* 死亡 */
+  #death{position:fixed;inset:0;display:none;z-index:55;background:rgba(80,0,0,.5);backdrop-filter:blur(4px);
+    flex-direction:column;align-items:center;justify-content:center;gap:22px;}
+  #death h1{color:#ff5a5a;font-size:46px;text-shadow:3px 3px 0 #000;}
+  #deathText{color:#eee;font-size:15px;}
+  #respawnBtn{cursor:pointer;background:#5a8a4a;border:2px solid;border-color:#7cc05f #2c3a22 #2c3a22 #7cc05f;
+    color:#fff;font-size:16px;padding:12px 28px;border-radius:5px;font-family:var(--ui);}
+  #respawnBtn:hover{background:#6aa05a;}
+
+  /* 聊天 */
+  #chatLog{position:fixed;left:12px;bottom:74px;width:min(440px,70vw);max-height:200px;overflow:hidden;
+    display:flex;flex-direction:column;justify-content:flex-end;z-index:23;pointer-events:none;}
+  .chatline{color:#fff;font-size:13px;text-shadow:1px 1px 0 #000;background:rgba(0,0,0,.32);
+    padding:2px 6px;margin-top:2px;border-radius:2px;width:fit-content;max-width:100%;word-break:break-word;}
+  @keyframes chatfade{0%,80%{opacity:1;}100%{opacity:0;}}
+  #chatBar{position:fixed;left:0;right:0;bottom:0;display:none;z-index:50;padding:8px;background:rgba(0,0,0,.5);}
+  #chatInput{width:100%;box-sizing:border-box;background:rgba(0,0,0,.75);border:1px solid #555;color:#fff;
+    font-size:15px;padding:9px 12px;border-radius:4px;font-family:var(--ui);outline:none;}
+  #chatInput:focus{border-color:#7cc05f;}
+
+  /* 大字提示 banner */
+  #banner{position:fixed;left:50%;top:24%;transform:translateX(-50%) scale(1);color:#fff;font-size:26px;
+    text-shadow:2px 2px 6px #000;opacity:0;transition:opacity .5s;z-index:28;pointer-events:none;text-align:center;}
+
+  /* 载入遮罩 */
+  #overlay{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    background:radial-gradient(ellipse at 50% 30%,#2a4a6a,#0d1420 75%);}
+  #overlay h1{color:#fff;font-size:30px;letter-spacing:3px;text-shadow:2px 2px 0 #000;}
+  #ovText{color:#bcd;font-size:14px;}
+  #loadTrack{width:min(320px,70vw);height:8px;background:rgba(0,0,0,.5);border-radius:4px;overflow:hidden;}
+  #loadBar{height:100%;width:0;background:linear-gradient(90deg,#5fc24a,#9cff3d);transition:width .4s;}
+  #ovPlay{display:none;cursor:pointer;background:#4a7a3a;border:2px solid;border-color:#7cc05f #243018 #243018 #7cc05f;
+    color:#fff;font-size:17px;padding:13px 40px;border-radius:6px;font-family:var(--ui);letter-spacing:1px;}
+  #ovPlay:hover{background:#5a9048;transform:translateY(-2px);}
+  #hint{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);color:rgba(255,255,255,.35);font-size:11px;z-index:22;pointer-events:none;}
+</style>
+</head>
+<body>
+  <canvas id="app"></canvas>
+
+  <div id="hurt"></div>
+  <div id="portalTint"></div>
+  <div id="fade"></div>
+  <div id="crosshair"></div>
+
+  <!-- 顶部 HUD -->
+  <div id="topbar">
+    <div class="badge" id="clockBadge"><span class="ic" id="clockIcon">☀️</span><span id="clockText">第 1 天 · 白天</span></div>
+    <div class="badge" id="dimBadge"><span class="ic">🌍</span><span id="dimText">主世界</span></div>
+    <div class="spacer"></div>
+    <button class="tbtn" id="btnMode">模式：生存</button>
+    <button class="tbtn" id="btnDim">维度</button>
+    <button class="tbtn" id="btnGfx">阴影：开</button>
+    <button class="tbtn" id="btnExport">导出</button>
+    <button class="tbtn" id="btnImport">导入</button>
+    <button class="tbtn" id="btnChat">聊天</button>
+    <button class="tbtn" id="backBtn">退出</button>
+  </div>
+
+  <!-- Boss 血条 -->
+  <div id="bossBar">
+    <div id="bossName">末影龙</div>
+    <div id="bossTrack"><div id="bossFill"></div></div>
+  </div>
+
+  <div id="selName"></div>
+
+  <!-- 状态 -->
+  <div id="stats">
+    <div class="statRows">
+      <div class="pipline" id="heartRow"></div>
+      <div class="pipline" id="airRow" class="hide"></div>
+      <div class="pipline" id="hungerRow"></div>
+    </div>
+    <div class="statRows"><div class="pipline" id="armorRow"></div></div>
+    <div id="xpWrap"><div id="xpBar"></div><div id="xpLevel"></div></div>
+  </div>
+
+  <!-- 快捷栏 -->
+  <div id="hotbar"></div>
+
+  <!-- 聊天 -->
+  <div id="chatLog"></div>
+  <div id="chatBar"><input id="chatInput" type="text" autocomplete="off" spellcheck="false" placeholder="输入聊天内容，或以 / 开头输入指令…"></div>
+
+  <div id="banner"></div>
+
+  <!-- 大界面 -->
+  <div id="screen"><div id="panel"><div id="screenTitle">物品栏</div><div id="screenBody"></div></div></div>
+
+  <!-- 死亡 -->
+  <div id="death">
+    <h1>你死了！</h1>
+    <div id="deathText"></div>
+    <button id="respawnBtn">重生</button>
+  </div>
+
+  <!-- 载入 -->
+  <div id="overlay">
+    <h1>方块世界</h1>
+    <div id="ovTitle" style="color:#fff;font-size:15px;">生成世界…</div>
+    <div id="loadTrack"><div id="loadBar"></div></div>
+    <div id="ovText">正在雕刻地形</div>
+    <div id="seedLabel" style="color:#9bb;font-size:12px;"></div>
+    <button id="ovPlay">开始游戏</button>
+  </div>
+
+  <div id="hint">WASD 移动 · 空格 跳 · F 飞行 · E 背包 · T 聊天 · 左键挖 · 右键放/用 · Q 丢弃 · 滚轮换物品</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="js/mc-world.js"></script>
+<!-- ================= 浏览器检测与提示模块 ================= -->
+<div id="browserTipModal" class="mc-modal-overlay">
+    <div class="mc-modal-content">
+        <h2>⚠️ 浏览器兼容性提示</h2>
+        <div id="tipMessage"></div>
+        <div class="url-box">
+            <input type="text" id="siteUrl" value="https://xztx127.dpdns.org/" readonly>
+            <button class="mc-btn-small" onclick="copyUrl()">📋 复制</button>
+        </div>
+        <div id="browserActions" style="margin-top: 15px;"></div>
+        <div style="margin-top: 20px; text-align: center;">
+            <button class="mc-btn-small" id="continueGameBtn" style="width: 100%;">我知道了，继续游戏</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .mc-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85);
+        justify-content: center;
+        align-items: center;
+        z-index: 99999;
+        font-family: 'Minecraft', 'Courier New', monospace, sans-serif;
+    }
+    .mc-modal-content {
+        background: #2b2b2b;
+        border: 4px solid #000;
+        padding: 25px;
+        width: 480px;
+        max-width: 90%;
+        color: #fff;
+        text-shadow: 2px 2px 0px #222;
+        box-shadow: 0 0 30px rgba(0,0,0,0.8);
+    }
+    .mc-modal-content h2 {
+        margin-top: 0;
+        color: #ffd700;
+        text-align: center;
+        font-size: 22px;
+        margin-bottom: 15px;
+    }
+    .mc-modal-content p {
+        line-height: 1.6;
+        font-size: 14px;
+        margin: 10px 0;
+    }
+    .url-box {
+        display: flex;
+        gap: 8px;
+        margin: 15px 0;
+    }
+    .url-box input {
+        flex: 1;
+        padding: 8px;
+        background: #000;
+        border: 2px solid #555;
+        color: #0f0;
+        font-family: monospace;
+        font-size: 14px;
+    }
+    .mc-btn-small {
+        padding: 8px 15px;
+        background-color: #555555;
+        color: #ffffff;
+        border: 2px solid #000;
+        border-bottom: 4px solid #333;
+        border-right: 4px solid #333;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 14px;
+        text-shadow: 2px 2px 0px #222;
+    }
+    .mc-btn-small:hover { background-color: #6a6a6a; }
+    .mc-btn-small:active { transform: translate(2px, 2px); border-bottom: 2px solid #333; border-right: 2px solid #333; }
+    .action-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+</style>
+
+<script>
+    let hasShownBrowserTip = false;
+    let pendingGameStartCallback = null;
+
+    // 1. 检测浏览器类型
+    function detectBrowser() {
+        const ua = navigator.userAgent;
+        if (ua.includes("Edg")) return "Edge";
+        if (ua.includes("360") || ua.includes("QIHU") || ua.includes("360SE") || ua.includes("360EE")) return "360浏览器";
+        if (ua.includes("Baidu") || ua.includes("BIDUBrowser")) return "百度浏览器";
+        if (ua.includes("Quark")) return "夸克浏览器";
+        if (ua.includes("Firefox")) return "Firefox";
+        if (ua.includes("Chrome")) return "Chrome";
+        return "未知浏览器";
+    }
+
+    // 2. 显示弹窗逻辑
+    function showBrowserTip(originalCallback) {
+        if (hasShownBrowserTip) return;
+        hasShownBrowserTip = true;
+        pendingGameStartCallback = originalCallback;
+
+        const browser = detectBrowser();
+        const tipMsg = document.getElementById('tipMessage');
+        const actions = document.getElementById('browserActions');
+        actions.innerHTML = '';
+
+        const badBrowsers = ["Edge", "360浏览器", "百度浏览器", "夸克浏览器"];
+        
+        if (badBrowsers.includes(browser)) {
+            tipMsg.innerHTML = `
+                <p>检测到您正在使用 <b style="color:#ff5555">${browser}</b>。</p>
+                <p>该浏览器的快捷手势（如侧滑返回、侧边栏等）可能会严重影响游戏的可玩性与操作体验。</p>
+                <p>强烈建议使用 <b style="color:#55ff55">Chrome（首选）</b> 或 <b style="color:#ffaa00">Firefox</b> 打开本站。</p>
+                <p>👉 请复制下方网址，打开 Chrome 或 Firefox 并粘贴访问：</p>
+            `;
+            
+            actions.innerHTML = `
+                <div class="action-btns">
+                    <button class="mc-btn-small" onclick="tryOpenBrowser('chrome')">🚀 尝试用 Chrome 打开</button>
+                    <button class="mc-btn-small" onclick="tryOpenBrowser('firefox')">🦊 尝试用 Firefox 打开</button>
+                </div>
+                <p style="font-size:12px; color:#aaa; margin-top:10px;">💡 提示：如果点击 Chrome 没反应，请手动打开 Firefox 试试。别忘了将本站加入收藏夹哦！</p>
+            `;
+        } else {
+            tipMsg.innerHTML = `
+                <p>检测到您正在使用 <b style="color:#55ff55">${browser}</b>，非常适合游玩本游戏！</p>
+                <p>⭐ 为了方便下次游玩，建议将本站加入收藏夹（按 <b>Ctrl+D</b> 或 <b>Cmd+D</b>）：</p>
+            `;
+            actions.innerHTML = `<p style="font-size:12px; color:#aaa;">感谢您的支持，祝您游戏愉快！</p>`;
+        }
+
+        document.getElementById('browserTipModal').style.display = 'flex';
+        
+        // 绑定“继续游戏”按钮
+        document.getElementById('continueGameBtn').onclick = function() {
+            document.getElementById('browserTipModal').style.display = 'none';
+            if (pendingGameStartCallback) {
+                pendingGameStartCallback(); // 执行原本的开始游戏逻辑
+            }
+        };
+    }
+
+    // 3. 复制链接功能
+    function copyUrl() {
+        const input = document.getElementById('siteUrl');
+        input.select();
+        document.execCommand('copy');
+        const btn = event.target;
+        const originalText = btn.innerText;
+        btn.innerText = '✅ 已复制';
+        setTimeout(() => btn.innerText = originalText, 1500);
+    }
+
+    // 4. 尝试唤起指定浏览器
+    function tryOpenBrowser(type) {
+        const url = "https://xztx127.dpdns.org/";
+        if (type === 'chrome') {
+            // 尝试使用自定义协议唤起 Chrome (移动端有效，桌面端可能需手动)
+            window.location.href = "googlechrome://" + url.replace("https://", "");
+            setTimeout(() => {
+                if(!document.hidden) {
+                    alert("如果 Chrome 没有自动打开，请手动复制上方网址，打开 Chrome 浏览器并粘贴访问。");
+                }
+            }, 1500);
+        } else if (type === 'firefox') {
+            window.location.href = "firefox://" + url; 
+            setTimeout(() => {
+                alert("请手动打开 Firefox 浏览器，并将复制的网址粘贴到地址栏中。");
+            }, 500);
+        }
+    }
+
+    // 5. 自动拦截“开始游戏”按钮 (无侵入式)
+    document.addEventListener('DOMContentLoaded', () => {
+        const observer = new MutationObserver(() => interceptStartButton());
+        observer.observe(document.body, { childList: true, subtree: true });
+        interceptStartButton();
+    });
+
+    function interceptStartButton() {
+        const allElements = document.querySelectorAll('button, div, a, span');
+        allElements.forEach(el => {
+            // 精确匹配文本为“开始游戏”且未被拦截过的元素
+            if (el.innerText && el.innerText.trim() === '开始游戏' && !el.dataset.intercepted) {
+                el.dataset.intercepted = 'true';
+                const originalClick = el.onclick;
+                el.onclick = null; 
+                
+                el.addEventListener('click', function(e) {
+                    if (!hasShownBrowserTip) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        setTimeout(() => {
+                            showBrowserTip(() => {
+                                if (originalClick) originalClick.call(el, e);
+                            });
+                        }, 100);
+                        return false;
+                    }
+                }, { once: false });
+            }
+        });
+    }
+</script>
+</body>
+</html>

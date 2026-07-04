@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>俄罗斯方块 · 小游戏厅</title>
+<style>
+  :root{--bg:#14161a;--panel:#1d2026;--text:#e8e6e0;--dim:#8a8d94;--accent:#f2a93b;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+    display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
+  .app{display:flex;gap:24px;align-items:flex-start}
+  .board-wrap{background:var(--panel);border-radius:12px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,.4);position:relative}
+  canvas#board{display:block;border-radius:6px;background:#0c0d10}
+  .side{display:flex;flex-direction:column;gap:16px;width:180px}
+  .panel{background:var(--panel);border-radius:12px;padding:16px;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+  .panel h3{font-size:12px;letter-spacing:.08em;color:var(--dim);font-weight:500;margin-bottom:8px;text-transform:uppercase}
+  .score-value{font-size:28px;font-weight:700;color:var(--accent)}
+  .stat-row{display:flex;justify-content:space-between;margin-top:8px;font-size:13px}
+  .stat-row span:first-child{color:var(--dim)}
+  canvas#next{display:block;margin:0 auto;background:#0c0d10;border-radius:6px}
+  .controls-list{font-size:12px;color:var(--dim);line-height:1.8}
+  .controls-list b{color:var(--text)}
+  .btn{width:100%;padding:10px;margin-top:4px;border:none;border-radius:8px;background:var(--accent);color:#1a1306;font-weight:600;font-size:14px;cursor:pointer;transition:opacity .15s}
+  .btn:hover{opacity:.85}
+  .btn-secondary{background:#2a2e36;color:var(--text)}
+  .btn-row{display:flex;gap:8px;margin-top:4px}.btn-row .btn{margin-top:0}
+  .overlay{position:absolute;inset:12px;background:rgba(12,13,16,.88);border-radius:6px;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px}
+  .overlay.show{display:flex}.overlay h2{font-size:20px}.overlay p{font-size:13px;color:var(--dim)}
+  #backBtn{position:fixed;top:16px;left:16px;z-index:200;padding:8px 16px;border:none;border-radius:8px;background:var(--accent);color:#1a1306;font-weight:700;font-size:13px;cursor:pointer}
+  #backBtn:hover{opacity:.85}
+  @media(max-width:560px){.app{flex-direction:column;align-items:center}.side{width:280px;flex-direction:row;flex-wrap:wrap}.panel{flex:1;min-width:120px}}
+</style>
+</head>
+<body>
+<button id="backBtn" onclick="location.href='../arcade.html'">← 返回游戏厅</button>
+<div class="app">
+  <div class="board-wrap">
+    <canvas id="board" width="300" height="600"></canvas>
+    <div class="overlay" id="overlay"><h2 id="ovTitle">游戏暂停</h2><p id="ovText">按空格继续</p></div>
+  </div>
+  <div class="side">
+    <div class="panel"><h3>分数</h3><div class="score-value" id="score">0</div>
+      <div class="stat-row"><span>等级</span><span id="level">1</span></div>
+      <div class="stat-row"><span>消除行数</span><span id="lines">0</span></div></div>
+    <div class="panel"><h3>下一个</h3><canvas id="next" width="120" height="120"></canvas></div>
+    <div class="panel"><h3>操作</h3>
+      <div class="controls-list"><b>← →</b> 移动<br><b>↑</b> 旋转<br><b>↓</b> 软降<br><b>空格</b> 硬降<br><b>P</b> 暂停</div>
+      <div class="btn-row"><button class="btn btn-secondary" id="pauseBtn">暂停</button><button class="btn" id="restartBtn">重开</button></div></div>
+  </div>
+</div>
+<script>
+(function(){
+  const COLS=10,ROWS=20,CELL=30;
+  const cv=document.getElementById('board'),ctx=cv.getContext('2d');
+  const nc=document.getElementById('next'),nx=nc.getContext('2d');
+  const overlay=document.getElementById('overlay'),ovTitle=document.getElementById('ovTitle'),ovText=document.getElementById('ovText');
+  const scoreEl=document.getElementById('score'),levelEl=document.getElementById('level'),linesEl=document.getElementById('lines');
+  const pauseBtn=document.getElementById('pauseBtn'),restartBtn=document.getElementById('restartBtn');
+  const COLORS={I:'#3fc1e8',O:'#f2d43b',T:'#a85bd6',S:'#5ed47a',Z:'#e8543f',J:'#4a7fe0',L:'#f2a93b'};
+  const SHAPES={I:[[1,1,1,1]],O:[[1,1],[1,1]],T:[[0,1,0],[1,1,1]],S:[[0,1,1],[1,1,0]],Z:[[1,1,0],[0,1,1]],J:[[1,0,0],[1,1,1]],L:[[0,0,1],[1,1,1]]};
+  const TYPES=Object.keys(SHAPES);
+  let grid,current,next,score,level,lines,dropInt,dropCnt,last,over,paused,raf;
+  const newGrid=()=>Array.from({length:ROWS},()=>Array(COLS).fill(null));
+  const randPiece=()=>{const t=TYPES[Math.random()*TYPES.length|0];const s=SHAPES[t].map(r=>r.slice());return{type:t,shape:s,x:(COLS-s[0].length)/2|0,y:0};};
+  const rot=s=>{const R=s.length,C=s[0].length,o=Array.from({length:C},()=>Array(R).fill(0));for(let r=0;r<R;r++)for(let c=0;c<C;c++)o[c][R-1-r]=s[r][c];return o;};
+  function hit(s,x,y){for(let r=0;r<s.length;r++)for(let c=0;c<s[r].length;c++){if(!s[r][c])continue;const gx=x+c,gy=y+r;if(gx<0||gx>=COLS||gy>=ROWS)return true;if(gy>=0&&grid[gy][gx])return true;}return false;}
+  function merge(){const{shape,x,y,type}=current;for(let r=0;r<shape.length;r++)for(let c=0;c<shape[r].length;c++)if(shape[r][c]){const gy=y+r;if(gy>=0)grid[gy][x+c]=type;}}
+  function clear(){let n=0;for(let r=ROWS-1;r>=0;r--){if(grid[r].every(c=>c)){grid.splice(r,1);grid.unshift(Array(COLS).fill(null));n++;r++;}}if(n){score+=[0,100,300,500,800][n]*level;lines+=n;level=(lines/10|0)+1;dropInt=Math.max(100,1000-(level-1)*80);stats();}}
+  function stats(){scoreEl.textContent=score;levelEl.textContent=level;linesEl.textContent=lines;}
+  function spawn(){current=next;next=randPiece();drawNext();if(hit(current.shape,current.x,current.y))end();}
+  function lock(){merge();clear();spawn();dropCnt=0;}
+  function down(){if(!hit(current.shape,current.x,current.y+1))current.y++;else lock();}
+  function hard(){while(!hit(current.shape,current.x,current.y+1))current.y++;lock();}
+  function move(d){if(!hit(current.shape,current.x+d,current.y))current.x+=d;}
+  function rotate(){const r=rot(current.shape);for(const k of[0,-1,1,-2,2])if(!hit(r,current.x+k,current.y)){current.shape=r;current.x+=k;return;}}
+  function cell(t,x,y,sz,c){c.fillStyle=COLORS[t];c.fillRect(x,y,sz,sz);c.strokeStyle='rgba(0,0,0,.25)';c.strokeRect(x+.5,y+.5,sz-1,sz-1);c.fillStyle='rgba(255,255,255,.18)';c.fillRect(x+2,y+2,sz-4,4);}
+  function drawGrid(){ctx.fillStyle='#0c0d10';ctx.fillRect(0,0,cv.width,cv.height);ctx.strokeStyle='rgba(255,255,255,.04)';for(let c=0;c<=COLS;c++){ctx.beginPath();ctx.moveTo(c*CELL,0);ctx.lineTo(c*CELL,ROWS*CELL);ctx.stroke();}for(let r=0;r<=ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*CELL);ctx.lineTo(COLS*CELL,r*CELL);ctx.stroke();}for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(grid[r][c])cell(grid[r][c],c*CELL,r*CELL,CELL,ctx);}
+  function ghost(){let gy=current.y;while(!hit(current.shape,current.x,gy+1))gy++;ctx.fillStyle='rgba(255,255,255,.06)';const{shape,x}=current;for(let r=0;r<shape.length;r++)for(let c=0;c<shape[r].length;c++)if(shape[r][c])ctx.fillRect((x+c)*CELL,(gy+r)*CELL,CELL,CELL);}
+  function drawCur(){const{shape,x,y,type}=current;for(let r=0;r<shape.length;r++)for(let c=0;c<shape[r].length;c++)if(shape[r][c]&&y+r>=0)cell(type,(x+c)*CELL,(y+r)*CELL,CELL,ctx);}
+  function drawNext(){nx.fillStyle='#0c0d10';nx.fillRect(0,0,nc.width,nc.height);const s=next.shape,sz=24,ox=(nc.width-s[0].length*sz)/2,oy=(nc.height-s.length*sz)/2;for(let r=0;r<s.length;r++)for(let c=0;c<s[r].length;c++)if(s[r][c])cell(next.type,ox+c*sz,oy+r*sz,sz,nx);}
+  function render(){drawGrid();ghost();drawCur();}
+  function end(){over=true;pauseBtn.textContent='暂停';ovTitle.textContent='游戏结束';ovText.textContent='最终分数 '+score;overlay.classList.add('show');}
+  function toggle(){if(over)return;paused=!paused;pauseBtn.textContent=paused?'继续':'暂停';if(paused){ovTitle.textContent='游戏暂停';ovText.textContent='按空格继续';overlay.classList.add('show');}else{overlay.classList.remove('show');last=performance.now();}}
+  function reset(){grid=newGrid();score=0;level=1;lines=0;dropInt=1000;dropCnt=0;over=false;paused=false;overlay.classList.remove('show');pauseBtn.textContent='暂停';next=randPiece();spawn();stats();last=performance.now();}
+  function loop(t){if(!over&&!paused){dropCnt+=t-last;if(dropCnt>dropInt){down();dropCnt=0;}render();}last=t;raf=requestAnimationFrame(loop);}
+  document.addEventListener('keydown',e=>{if(over){if(e.code==='Space')reset();return;}switch(e.code){case'ArrowLeft':e.preventDefault();if(!paused)move(-1);break;case'ArrowRight':e.preventDefault();if(!paused)move(1);break;case'ArrowUp':e.preventDefault();if(!paused)rotate();break;case'ArrowDown':e.preventDefault();if(!paused)down();break;case'Space':e.preventDefault();paused?toggle():hard();break;case'KeyP':toggle();break;}});
+  restartBtn.onclick=reset;pauseBtn.onclick=toggle;
+  reset();raf=requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

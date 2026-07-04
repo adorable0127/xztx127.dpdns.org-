@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>井字棋 · 小游戏厅</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:#14161a;color:#e8e6e0;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;gap:16px}
+  #backBtn{position:fixed;top:16px;left:16px;padding:8px 16px;border:none;border-radius:8px;background:#f2d43b;color:#3a3000;font-weight:700;font-size:13px;cursor:pointer;z-index:10}
+  #backBtn:hover{opacity:.85}
+  h1{font-size:22px;color:#f2d43b}
+  .hud{display:flex;gap:20px;font-size:14px}.hud b{color:#f2d43b}
+  .diff{display:flex;gap:8px;margin-bottom:2px}
+  .diff button{padding:6px 14px;border:2px solid #3a3a42;border-radius:8px;background:#23232b;color:#a0a0a0;font-size:12px;font-weight:700;cursor:pointer}
+  .diff button.on{border-color:#f2d43b;color:#f2d43b;background:#2a2818}
+  .wrap{position:relative;background:#1d2026;border-radius:14px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  .grid{display:grid;grid-template-columns:repeat(3,92px);grid-template-rows:repeat(3,92px);gap:8px}
+  .cell{width:92px;height:92px;background:#15151b;border:2px solid #2e2e38;border-radius:10px;font-size:48px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .1s}
+  .cell:hover{background:#22222c}
+  .cell.win{background:#2a3a1e;border-color:#5ed47a}
+  .cell.taken{cursor:default}
+  .status{font-size:15px;height:22px;color:#e8e6e0}
+  .overlay{position:absolute;inset:0;background:rgba(12,13,16,.93);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px;z-index:5}
+  .overlay.hide{display:none}.overlay h2{font-size:22px}.overlay p{font-size:13px;color:#8a8d94;max-width:240px;line-height:1.7}
+  .btn{padding:11px 22px;border:none;border-radius:8px;background:#f2d43b;color:#3a3000;font-weight:700;font-size:15px;cursor:pointer}.btn:hover{opacity:.85}
+  .hint{font-size:12px;color:#8a8d94}
+</style>
+</head>
+<body>
+<button id="backBtn" onclick="location.href='../arcade.html'">← 返回游戏厅</button>
+<h1>⭕ 井字棋</h1>
+<div class="hud"><span>你 💎 <b id="pw">0</b></span><span>平 <b id="dw">0</b></span><span>电脑 🟩 <b id="aw">0</b></span></div>
+<div class="diff" id="diff">
+  <button data-d="easy">简单</button>
+  <button data-d="hard" class="on">无敌</button>
+</div>
+<div class="wrap">
+  <div class="grid" id="grid"></div>
+  <div class="overlay" id="overlay">
+    <h2 id="ovTitle">井字棋</h2>
+    <p id="ovText">你执钻石 💎，先手。三连即获胜。「无敌」模式下电脑用 Minimax，永远不会输——试试逼平它！</p>
+    <button class="btn" id="startBtn">开始游戏</button>
+  </div>
+</div>
+<div class="status" id="status"></div>
+<div class="hint">点击空格落子 · 钻石 💎 vs 苦力怕 🟩</div>
+<script>
+(function(){
+  const grid=document.getElementById('grid'),overlay=document.getElementById('overlay'),statusEl=document.getElementById('status');
+  const ovTitle=document.getElementById('ovTitle'),ovText=document.getElementById('ovText'),startBtn=document.getElementById('startBtn');
+  const pwEl=document.getElementById('pw'),dwEl=document.getElementById('dw'),awEl=document.getElementById('aw');
+  const P='💎',A='🟩';
+  let board,cells=[],turn,over,diff='hard',pw=0,dw=0,aw=0,running=false;
+  for(let i=0;i<9;i++){const c=document.createElement('div');c.className='cell';c.dataset.i=i;c.addEventListener('click',()=>play(i));grid.appendChild(c);cells.push(c);}
+  const LINES=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  function winner(b){for(const L of LINES){const[a,x,y]=L;if(b[a]&&b[a]===b[x]&&b[a]===b[y])return{who:b[a],line:L};}return b.every(v=>v)?{who:'draw'}:null;}
+  function start(){board=Array(9).fill('');turn=P;over=false;running=true;cells.forEach(c=>{c.textContent='';c.className='cell';});statusEl.textContent='你的回合 💎';overlay.classList.add('hide');}
+  function play(i){
+    if(!running||over||board[i]||turn!==P)return;
+    move(i,P);
+    if(!over){turn=A;statusEl.textContent='电脑思考中…';setTimeout(aiMove,360);}
+  }
+  function move(i,who){
+    board[i]=who;cells[i].textContent=who;cells[i].classList.add('taken');
+    const w=winner(board);
+    if(w){over=true;finish(w);}
+  }
+  function aiMove(){
+    if(over)return;
+    let i;
+    if(diff==='easy'&&Math.random()<0.55){const free=board.map((v,k)=>v?-1:k).filter(k=>k>=0);i=free[Math.random()*free.length|0];}
+    else i=best(board,A).i;
+    move(i,A);
+    if(!over){turn=P;statusEl.textContent='你的回合 💎';}
+  }
+  function best(b,who){
+    const w=winner(b);
+    if(w){if(w.who===A)return{s:10};if(w.who===P)return{s:-10};return{s:0};}
+    const moves=[];
+    for(let i=0;i<9;i++){if(!b[i]){b[i]=who;const r=best(b,who===A?P:A);moves.push({i:i,s:r.s});b[i]='';}}
+    if(who===A){let m=moves[0];for(const x of moves)if(x.s>m.s)m=x;return m;}
+    else{let m=moves[0];for(const x of moves)if(x.s<m.s)m=x;return m;}
+  }
+  function finish(w){
+    running=false;
+    if(w.who==='draw'){dw++;dwEl.textContent=dw;ovTitle.textContent='平局！';ovText.textContent='势均力敌，再来一局？';}
+    else{
+      w.line.forEach(k=>cells[k].classList.add('win'));
+      if(w.who===P){pw++;pwEl.textContent=pw;ovTitle.textContent='你赢了！🎉';ovText.textContent='漂亮的三连，再战一局？';}
+      else{aw++;awEl.textContent=aw;ovTitle.textContent='电脑获胜';ovText.textContent='差一点！再试一次？';}
+    }
+    statusEl.textContent='';startBtn.textContent='再来一局';setTimeout(()=>overlay.classList.remove('hide'),700);
+  }
+  document.getElementById('diff').addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;diff=b.dataset.d;
+    [...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));
+  });
+  startBtn.onclick=start;
+})();
+</script>
+</body>
+</html>

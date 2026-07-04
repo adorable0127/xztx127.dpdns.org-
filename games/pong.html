@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>弹球对战 · 小游戏厅</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#14161a;color:#e8e6e0;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;gap:16px}
+  #backBtn{position:fixed;top:16px;left:16px;padding:8px 16px;border:none;border-radius:8px;background:#e8e6e0;color:#1a1a1a;font-weight:700;font-size:13px;cursor:pointer;z-index:10}
+  #backBtn:hover{opacity:.85}
+  h1{font-size:22px;color:#e8e6e0}
+  .hud{display:flex;gap:24px;font-size:15px}.hud b{color:#fff}
+  .wrap{position:relative;background:#1d2026;border-radius:12px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  canvas{display:block;background:#0c0d10;border-radius:6px;image-rendering:pixelated;touch-action:none}
+  .overlay{position:absolute;inset:12px;background:rgba(12,13,16,.92);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:20px}
+  .overlay.hide{display:none}.overlay h2{font-size:22px}.overlay p{font-size:13px;color:#8a8d94;max-width:280px;line-height:1.7}
+  .btn{padding:11px 22px;border:none;border-radius:8px;background:#e8e6e0;color:#1a1a1a;font-weight:700;font-size:15px;cursor:pointer}.btn:hover{opacity:.85}
+  .row{display:flex;gap:10px}.btn.alt{background:#3a3a42;color:#e8e6e0}
+  .hint{font-size:12px;color:#8a8d94}
+</style>
+</head>
+<body>
+<button id="backBtn" onclick="location.href='../arcade.html'">← 返回游戏厅</button>
+<h1>🏓 弹球对战</h1>
+<div class="hud"><span>你 <b id="ps">0</b></span><span style="color:#8a8d94">先到 5 分获胜</span><span>电脑 <b id="as">0</b></span></div>
+<div class="wrap">
+  <canvas id="cv" width="520" height="340"></canvas>
+  <div class="overlay" id="overlay">
+    <h2 id="ovTitle">弹球对战</h2>
+    <p id="ovText">用 W / S 或 ↑ / ↓ 移动左侧挡板，也可以上下移动鼠标。把球弹过电脑，先得 5 分者胜。</p>
+    <div class="row">
+      <button class="btn" id="startBtn">普通</button>
+      <button class="btn alt" id="hardBtn">困难</button>
+    </div>
+  </div>
+</div>
+<div class="hint">W / S · ↑ / ↓ · 鼠标移动</div>
+<script>
+(function(){
+  const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  const psEl=document.getElementById('ps'),asEl=document.getElementById('as');
+  const overlay=document.getElementById('overlay'),ovTitle=document.getElementById('ovTitle'),ovText=document.getElementById('ovText'),startBtn=document.getElementById('startBtn'),hardBtn=document.getElementById('hardBtn');
+  const PW=12,PH=64,WIN=5;
+  let pl,ai,ball,ps,as,running=false,keys={},aiSpeed,aiErr;
+  function resetBall(dir){ball={x:W/2,y:H/2,r:7,vx:dir*4.4,vy:(Math.random()*2-1)*3};}
+  function reset(){pl={y:H/2-PH/2};ai={y:H/2-PH/2};ps=0;as=0;psEl.textContent=0;asEl.textContent=0;resetBall(Math.random()<.5?-1:1);}
+  function start(speed,err){reset();aiSpeed=speed;aiErr=err;overlay.classList.add('hide');running=true;loop();}
+  function end(win){running=false;ovTitle.textContent=win?'你赢了！🎉':'电脑获胜';ovText.textContent='比分 '+ps+' : '+as+'，再来一局？';startBtn.textContent='普通';hardBtn.textContent='困难';overlay.classList.remove('hide');}
+  function update(){
+    if(keys['KeyW']||keys['ArrowUp'])pl.y-=6;
+    if(keys['KeyS']||keys['ArrowDown'])pl.y+=6;
+    pl.y=Math.max(0,Math.min(H-PH,pl.y));
+    const target=ball.y-PH/2+aiErr*(Math.sin(ball.x/40));
+    if(ai.y+PH/2<target-6)ai.y+=aiSpeed;else if(ai.y+PH/2>target+6)ai.y-=aiSpeed;
+    ai.y=Math.max(0,Math.min(H-PH,ai.y));
+    ball.x+=ball.vx;ball.y+=ball.vy;
+    if(ball.y-ball.r<0){ball.y=ball.r;ball.vy*=-1;}
+    if(ball.y+ball.r>H){ball.y=H-ball.r;ball.vy*=-1;}
+    if(ball.x-ball.r<PW+8&&ball.y>pl.y&&ball.y<pl.y+PH&&ball.vx<0){const hit=(ball.y-(pl.y+PH/2))/(PH/2);ball.vx=Math.abs(ball.vx)*1.04;ball.vy=hit*4.6;ball.x=PW+8+ball.r;}
+    if(ball.x+ball.r>W-PW-8&&ball.y>ai.y&&ball.y<ai.y+PH&&ball.vx>0){const hit=(ball.y-(ai.y+PH/2))/(PH/2);ball.vx=-Math.abs(ball.vx)*1.04;ball.vy=hit*4.6;ball.x=W-PW-8-ball.r;}
+    if(ball.x<-10){as++;asEl.textContent=as;if(as>=WIN)return end(false);resetBall(1);}
+    if(ball.x>W+10){ps++;psEl.textContent=ps;if(ps>=WIN)return end(true);resetBall(-1);}
+  }
+  function draw(){ctx.fillStyle='#0c0d10';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#2a2a32';for(let y=8;y<H;y+=26)ctx.fillRect(W/2-2,y,4,14);
+    ctx.fillStyle='#5ed47a';ctx.fillRect(4,pl.y,PW,PH);
+    ctx.fillStyle='#e85a5a';ctx.fillRect(W-PW-4,ai.y,PW,PH);
+    ctx.fillStyle='#fff';ctx.fillRect(ball.x-ball.r,ball.y-ball.r,ball.r*2,ball.r*2);
+  }
+  function loop(){if(!running)return;update();if(!running)return;draw();requestAnimationFrame(loop);}
+  cv.addEventListener('mousemove',e=>{const r=cv.getBoundingClientRect();const my=(e.clientY-r.top)*(H/r.height);if(pl)pl.y=Math.max(0,Math.min(H-PH,my-PH/2));});
+  cv.addEventListener('touchmove',e=>{e.preventDefault();const r=cv.getBoundingClientRect();const my=(e.touches[0].clientY-r.top)*(H/r.height);if(pl)pl.y=Math.max(0,Math.min(H-PH,my-PH/2));},{passive:false});
+  document.addEventListener('keydown',e=>{keys[e.code]=true;if(['ArrowUp','ArrowDown'].includes(e.code))e.preventDefault();});
+  document.addEventListener('keyup',e=>{keys[e.code]=false;});
+  startBtn.onclick=()=>start(4.4,18);
+  hardBtn.onclick=()=>start(5.6,6);
+  reset();draw();
+})();
+</script>
+</body>
+</html>

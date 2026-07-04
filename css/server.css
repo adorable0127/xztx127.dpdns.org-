@@ -1,0 +1,97 @@
+/* =====================================================================
+   server.css  ·  文件服务器（server.html）专属样式
+   ===================================================================== */
+
+body.server {
+  min-height: 100vh;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(0,0,0,.18) 31px, rgba(0,0,0,.18) 32px),
+    repeating-linear-gradient(90deg, transparent, transparent 31px, rgba(0,0,0,.18) 31px, rgba(0,0,0,.18) 32px),
+    #1a1a2e;
+  background-size: 32px 32px, 32px 32px, auto;
+  padding: 70px 16px 40px;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.srv-wrap { max-width: 760px; margin: 0 auto; position: relative; z-index: 2; }
+
+.srv-header { text-align: center; margin-bottom: 22px; }
+.srv-header .mc-title { font-size: clamp(20px, 4vw, 32px); }
+.srv-header .tag { margin-top: 10px; font-size: 8px; }
+
+/* 存储占用条 */
+.usage {
+  margin: 0 auto 20px;
+  max-width: 480px;
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  color: var(--ui-text-dim);
+}
+.usage .bar { height: 12px; background: #111; border: 2px solid #000; margin-top: 6px; overflow: hidden; }
+.usage .fill { height: 100%; width: 0%; background: var(--mc-green); transition: width .3s; }
+.usage .row { display: flex; justify-content: space-between; }
+
+/* 拖放上传区 */
+.dropzone {
+  border: 3px dashed #4a4a4a;
+  background: rgba(0,0,0,.3);
+  padding: 38px 16px;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  transition: all .12s;
+  margin-bottom: 16px;
+}
+.dropzone:hover, .dropzone.over { border-color: var(--mc-blue); background: rgba(123,123,255,.08); }
+.dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.dropzone .ico { font-size: 40px; display: block; margin-bottom: 12px; }
+.dropzone p { font-family: var(--font-pixel); font-size: 8px; color: var(--ui-text-dim); line-height: 2.4; }
+.dropzone p b { color: var(--mc-blue); }
+
+/* 进度条 */
+.prog { display: none; margin-bottom: 16px; }
+.prog .lbl { font-family: var(--font-pixel); font-size: 7px; color: var(--ui-text-dim); display: flex; justify-content: space-between; margin-bottom: 5px; }
+.prog .outer { height: 16px; background: #111; border: 2px solid #000; overflow: hidden; }
+.prog .inner { height: 100%; width: 0%; background: var(--mc-green); transition: width .2s; }
+
+/* 工具条 */
+.srv-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.srv-tools .count { font-family: var(--font-pixel); font-size: 8px; color: var(--mc-gold); }
+
+/* 文件列表 */
+.flist { list-style: none; }
+.fitem {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; margin-bottom: 6px;
+  background: rgba(255,255,255,.04);
+  border: 2px solid #3a3a3a; border-top-color: #555; border-left-color: #555;
+  flex-wrap: wrap;
+}
+.fitem:hover { background: rgba(123,123,255,.08); border-color: var(--mc-blue); }
+.fitem.important { border-color: var(--mc-gold); background: rgba(255,216,61,.07); }
+.ficon {
+  width: 40px; height: 40px; flex-shrink: 0;
+  background: #3a3a3a; border: 2px solid #777; border-bottom-color: #111; border-right-color: #111;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.finfo { flex: 1; min-width: 120px; }
+.fname { font-family: var(--font-pixel); font-size: 8px; color: #fff; word-break: break-all; line-height: 1.5; }
+.fname .star { color: var(--mc-gold); margin-right: 4px; }
+.fmeta { font-family: var(--font-pixel); font-size: 6px; color: #666; margin-top: 5px; }
+.factions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* 空状态 */
+.empty { text-align: center; padding: 40px 16px; font-family: var(--font-pixel); font-size: 8px; color: #555; line-height: 3; }
+.empty .ei { font-size: 32px; display: block; margin-bottom: 14px; }
+
+/* 不支持本地存储时的提示 */
+.unsupported {
+  display: none;
+  margin: 0 auto 16px; max-width: 520px;
+  border: 2px solid var(--mc-red);
+  background: rgba(216,60,60,.12);
+  padding: 14px; font-family: var(--font-pixel); font-size: 7px; line-height: 2; color: #ffd0d0;
+}
+
+.srv-footer { text-align: center; margin-top: 24px; font-family: var(--font-pixel); font-size: 6px; color: #444; line-height: 2.6; border-top: 2px solid #222; padding-top: 16px; }
